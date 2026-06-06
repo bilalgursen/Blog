@@ -1,6 +1,10 @@
-packages: []
+packages:
+  - "apps/*"
+  - "packages/*"
 
-allowBuilds:
-  sharp: true
-  unrs-resolver: true
-  msw: false
+onlyBuiltDependencies:
+  - sharp
+  - esbuild
+  - "@swc/core"
+  - core-js-pure
+  - unrs-resolver
