@@ -2,6 +2,9 @@
 
 ## 2026-06-10
 
+- **docs(readme): kök README monorepo yapısına göre güncellendi.**
+  - Teknoloji yığını, proje yapısı, Docker/yerel kurulum, komutlar ve veri katmanı özeti eklendi.
+
 - **feat(docker): tam stack docker compose kurulumu eklendi.**
   - `docker/Dockerfile` (dev target) ve `docker/entrypoint.sh` — monorepo pnpm kurulumu.
   - `docker-compose.yml` güncellendi: `db` + `cms` + `web` servisleri.
