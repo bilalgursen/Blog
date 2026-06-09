@@ -5,11 +5,6 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/src/lib/utils"
 
-const DrawerPortalPrimitive = DrawerPrimitive.Portal as React.ComponentType<{
-  children?: React.ReactNode
-  "data-slot"?: string
-}>
-
 function Drawer({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
@@ -22,12 +17,10 @@ function DrawerTrigger({
   return <DrawerPrimitive.Trigger data-slot="drawer-trigger" {...props} />
 }
 
-function DrawerPortal({ children }: { children?: React.ReactNode }) {
-  return (
-    <DrawerPortalPrimitive data-slot="drawer-portal">
-      {children}
-    </DrawerPortalPrimitive>
-  )
+function DrawerPortal({
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Portal>) {
+  return <DrawerPrimitive.Portal data-slot="drawer-portal" {...props} />
 }
 
 function DrawerClose({
@@ -75,7 +68,7 @@ function DrawerContent({
   )
 }
 
-function DrawerHeader({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="drawer-header"
@@ -88,7 +81,7 @@ function DrawerHeader({ className, ...props }: React.ComponentPropsWithoutRef<"d
   )
 }
 
-function DrawerFooter({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="drawer-footer"

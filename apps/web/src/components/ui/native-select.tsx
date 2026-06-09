@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/src/lib/utils"
 import { ChevronDownIcon } from "lucide-react"
 
-type NativeSelectProps = Omit<React.ComponentPropsWithoutRef<"select">, "size"> & {
+type NativeSelectProps = Omit<React.ComponentProps<"select">, "size"> & {
   size?: "sm" | "default"
 }
 
@@ -35,7 +35,7 @@ function NativeSelect({
 function NativeSelectOption({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"option">) {
+}: React.ComponentProps<"option">) {
   return (
     <option
       data-slot="native-select-option"
@@ -48,7 +48,7 @@ function NativeSelectOption({
 function NativeSelectOptGroup({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"optgroup">) {
+}: React.ComponentProps<"optgroup">) {
   return (
     <optgroup
       data-slot="native-select-optgroup"

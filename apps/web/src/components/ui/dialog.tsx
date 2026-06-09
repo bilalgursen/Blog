@@ -80,7 +80,7 @@ function DialogContent({
   )
 }
 
-function DialogHeader({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
@@ -95,7 +95,7 @@ function DialogFooter({
   showCloseButton = false,
   children,
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & {
+}: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
   return (

@@ -239,7 +239,7 @@ function ContextMenuSeparator({
 function ContextMenuShortcut({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"span">) {
+}: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="context-menu-shortcut"

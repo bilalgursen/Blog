@@ -7,7 +7,7 @@ import { cn } from "@/src/lib/utils"
 import { Label } from "@/src/components/ui/label"
 import { Separator } from "@/src/components/ui/separator"
 
-function FieldSet({ className, ...props }: React.ComponentPropsWithoutRef<"fieldset">) {
+function FieldSet({ className, ...props }: React.ComponentProps<"fieldset">) {
   return (
     <fieldset
       data-slot="field-set"
@@ -24,7 +24,7 @@ function FieldLegend({
   className,
   variant = "legend",
   ...props
-}: React.ComponentPropsWithoutRef<"legend"> & { variant?: "legend" | "label" }) {
+}: React.ComponentProps<"legend"> & { variant?: "legend" | "label" }) {
   return (
     <legend
       data-slot="field-legend"
@@ -38,7 +38,7 @@ function FieldLegend({
   )
 }
 
-function FieldGroup({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-group"
@@ -73,7 +73,7 @@ function Field({
   className,
   orientation = "vertical",
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & VariantProps<typeof fieldVariants>) {
+}: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
   return (
     <div
       role="group"
@@ -85,7 +85,7 @@ function Field({
   )
 }
 
-function FieldContent({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-content"
@@ -115,7 +115,7 @@ function FieldLabel({
   )
 }
 
-function FieldTitle({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function FieldTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field-label"
@@ -128,7 +128,7 @@ function FieldTitle({ className, ...props }: React.ComponentPropsWithoutRef<"div
   )
 }
 
-function FieldDescription({ className, ...props }: React.ComponentPropsWithoutRef<"p">) {
+function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
@@ -147,7 +147,7 @@ function FieldSeparator({
   children,
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & {
+}: React.ComponentProps<"div"> & {
   children?: React.ReactNode
 }) {
   return (
@@ -178,7 +178,7 @@ function FieldError({
   children,
   errors,
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & {
+}: React.ComponentProps<"div"> & {
   errors?: Array<{ message?: string } | undefined>
 }) {
   const content = useMemo(() => {

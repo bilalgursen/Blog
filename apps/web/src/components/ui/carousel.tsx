@@ -50,7 +50,7 @@ function Carousel({
   className,
   children,
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & CarouselProps) {
+}: React.ComponentProps<"div"> & CarouselProps) {
   const [carouselRef, api] = useEmblaCarousel(
     {
       ...opts,
@@ -132,7 +132,7 @@ function Carousel({
   )
 }
 
-function CarouselContent({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
   const { carouselRef, orientation } = useCarousel()
 
   return (
@@ -153,7 +153,7 @@ function CarouselContent({ className, ...props }: React.ComponentPropsWithoutRef
   )
 }
 
-function CarouselItem({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   const { orientation } = useCarousel()
 
   return (

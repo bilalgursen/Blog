@@ -170,7 +170,7 @@ function CommandItem({
 function CommandShortcut({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"span">) {
+}: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="command-shortcut"

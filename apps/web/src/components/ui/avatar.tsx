@@ -54,7 +54,7 @@ function AvatarFallback({
   )
 }
 
-function AvatarBadge({ className, ...props }: React.ComponentPropsWithoutRef<"span">) {
+function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="avatar-badge"
@@ -70,7 +70,7 @@ function AvatarBadge({ className, ...props }: React.ComponentPropsWithoutRef<"sp
   )
 }
 
-function AvatarGroup({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="avatar-group"
@@ -86,7 +86,7 @@ function AvatarGroup({ className, ...props }: React.ComponentPropsWithoutRef<"di
 function AvatarGroupCount({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="avatar-group-count"

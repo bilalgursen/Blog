@@ -23,7 +23,7 @@ function Alert({
   className,
   variant,
   ...props
-}: React.ComponentPropsWithoutRef<"div"> & VariantProps<typeof alertVariants>) {
+}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
   return (
     <div
       data-slot="alert"
@@ -34,7 +34,7 @@ function Alert({
   )
 }
 
-function AlertTitle({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-title"
@@ -50,7 +50,7 @@ function AlertTitle({ className, ...props }: React.ComponentPropsWithoutRef<"div
 function AlertDescription({
   className,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-description"
@@ -63,7 +63,7 @@ function AlertDescription({
   )
 }
 
-function AlertAction({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
+function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-action"
