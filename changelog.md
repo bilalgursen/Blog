@@ -2,6 +2,12 @@
 
 ## 2026-06-10
 
+- **chore(web): shadcn UI bileşenleri registry'den yeniden kuruldu (`base-maia`).**
+  - 32 dosyalık manuel React 19 patch geri alındı (`55688e9`).
+  - `shadcn add --all --overwrite` ile 55 bileşen temiz kurulum.
+  - `calendar.tsx`: react-day-picker v10 uyumu (`table` → `month_grid`).
+  - `layout.tsx`: `TooltipProvider` eklendi.
+
 - **docs(readme): kök README monorepo yapısına göre güncellendi.**
   - Teknoloji yığını, proje yapısı, Docker/yerel kurulum, komutlar ve veri katmanı özeti eklendi.
 
