@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-10
+
+- **feat(docker): tam stack docker compose kurulumu eklendi.**
+  - `docker/Dockerfile` (dev target) ve `docker/entrypoint.sh` — monorepo pnpm kurulumu.
+  - `docker-compose.yml` güncellendi: `db` + `cms` + `web` servisleri.
+  - `.dockerignore`, güncellenmiş `.env.example` ve `apps/cms/.env.example`.
+  - Kök scriptler: `docker:up`, `docker:up:detach`, `docker:down`, `docker:logs`, `docker:reset`.
+  - Dokümantasyon: `docs/docker-setup.md`.
+  - `apps/web/next.config.ts`: Docker prod build için `output: "standalone"`.
+
 ## 2026-06-06
 
 - **refactor(ui): shadcn bileşenleri Radix yerine Base UI'a geçirildi.**

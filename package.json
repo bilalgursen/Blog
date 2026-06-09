@@ -22,7 +22,12 @@
     "db:studio": "pnpm --filter @repo/db db:studio",
     "lint": "pnpm --recursive lint",
     "typecheck": "pnpm --recursive typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "docker:up": "docker-compose up --build",
+    "docker:up:detach": "docker-compose up --build -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:reset": "docker-compose down -v"
   },
   "devDependencies": {
     "prettier": "^3.8.3",
