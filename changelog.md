@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-10
+
+- **chore(web): shadcn UI bileşenleri registry'den yeniden kuruldu (`base-maia`).**
+  - 32 dosyalık manuel React 19 patch geri alındı (`55688e9`).
+  - `shadcn add --all --overwrite` ile 55 bileşen temiz kurulum.
+  - `calendar.tsx`: react-day-picker v10 uyumu (`table` → `month_grid`).
+  - `layout.tsx`: `TooltipProvider` eklendi.
+
+- **docs(readme): kök README monorepo yapısına göre güncellendi.**
+  - Teknoloji yığını, proje yapısı, Docker/yerel kurulum, komutlar ve veri katmanı özeti eklendi.
+
+- **feat(docker): tam stack docker compose kurulumu eklendi.**
+  - `docker/Dockerfile` (dev target) ve `docker/entrypoint.sh` — monorepo pnpm kurulumu.
+  - `docker-compose.yml` güncellendi: `db` + `cms` + `web` servisleri.
+  - `.dockerignore`, güncellenmiş `.env.example` ve `apps/cms/.env.example`.
+  - Kök scriptler: `docker:up`, `docker:up:detach`, `docker:down`, `docker:logs`, `docker:reset`.
+  - Dokümantasyon: `docs/docker-setup.md`.
+  - `apps/web/next.config.ts`: Docker prod build için `output: "standalone"`.
+
 ## 2026-06-06
 
 - **refactor(ui): shadcn bileşenleri Radix yerine Base UI'a geçirildi.**

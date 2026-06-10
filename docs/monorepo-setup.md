@@ -32,7 +32,11 @@ Blog/
 | `pnpm db:generate` | Drizzle migration üret |
 | `pnpm db:migrate` | Migration uygula |
 | `pnpm db:studio` | Drizzle Studio |
-| `docker compose up -d` | PostgreSQL'i başlat |
+| `docker compose up --build` | PostgreSQL + Strapi + Next.js (tam stack) |
+| `docker compose up -d db` | Yalnızca PostgreSQL (yerel `pnpm dev` ile) |
+| `pnpm docker:up:detach` | Tam stack, arka planda |
+
+Detaylı Docker kılavuzu: `docs/docker-setup.md`.
 
 ## Web içinden DB kullanımı
 
