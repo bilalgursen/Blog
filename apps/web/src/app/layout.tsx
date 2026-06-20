@@ -2,7 +2,6 @@ import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/src/components/theme-provider"
-import { TooltipProvider } from "@/src/components/ui/tooltip"
 import { cn } from "@/src/lib/utils";
 
 const instrumentSerifHeading = Instrument_Serif({subsets:['latin'],weight:['400'],variable:'--font-heading'});
@@ -26,9 +25,7 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", inter.variable, instrumentSerifHeading.variable)}
     >
       <body>
-        <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   )

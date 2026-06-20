@@ -1,4 +1,5 @@
 import Image from "next/image"
+import type { Metadata } from "next"
 
 import {
   Card,
@@ -9,6 +10,11 @@ import {
 import { CardLink } from "@/src/components/motion"
 import { getArticles, mediaUrl } from "@/src/lib/strapi"
 
+export const metadata: Metadata = {
+  title: "Blog",
+  description: "Latest articles",
+}
+
 function formatDate(value: string | null) {
   if (!value) return null
   return new Date(value).toLocaleDateString("tr-TR", {
@@ -18,7 +24,7 @@ function formatDate(value: string | null) {
   })
 }
 
-export default async function Page() {
+export default async function BlogPage() {
   const articles = await getArticles()
 
   return (
