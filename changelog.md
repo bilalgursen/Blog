@@ -2,6 +2,19 @@
 
 ## 2026-06-21
 
+- **docs(dev): yerel geliştirme & performans rehberi + hafif dev scriptleri eklendi.**
+  - `pnpm dev`'in iki ağır sunucuyu (Next.js + `strapi develop`) paralel çalıştırdığı, bu yüzden makineyi zorladığı açıklandı.
+  - `package.json`: `dev:cms:start` (Strapi'yi bir kez build edip watch'sız çalıştırır) ve `dev:light` (Strapi watch'sız + Next dev birlikte, `Ctrl+C` ile temiz kapanış) scriptleri eklendi.
+  - Dokümantasyon: `docs/local-development.md` — komut karşılaştırma tablosu, `dev:light` çalışma mantığı ve hızlı teşhis (Activity Monitor / `top`).
+
+- **docs(deploy): sunucu (production) yayına alma kurulumu + üretim Docker dosyaları eklendi.**
+  - `docker/Dockerfile.prod`: multi-stage; `web` (Next.js standalone) ve `cms` (Strapi, `pnpm deploy --prod`) target'ları.
+  - `docker-compose.prod.yml`: db + cms + web üretim stack'i; portlar `127.0.0.1`'e bağlı (reverse proxy önünde).
+  - `apps/web/next.config.ts`: `output: "standalone"` + `outputFileTracingRoot` (monorepo) — ince çalıştırma imajı.
+  - `package.json`: `docker:prod:up|down|logs` scriptleri.
+  - `.env.example`: `NEXT_PUBLIC_STRAPI_URL` + `STRAPI_API_TOKEN` ve build-time/runtime URL açıklaması.
+  - Dokümantasyon: `docs/deployment.md` (gereksinimler, env, adımlar, reverse proxy/HTTPS, migration, yedekleme, sorun giderme).
+
 - **fix(docker): web ↔ Strapi ve cms ↔ Postgres servis-içi ağ erişimi düzeltildi.**
   - `cms`: `POSTGRES_HOST: db` eklendi — `.env`'deki `localhost` sızması nedeniyle cms `localhost:5432`'yi sonsuza dek bekliyordu.
   - `web`: `STRAPI_INTERNAL_URL: http://cms:1337` eklendi; `src/lib/strapi.ts` server-side fetch için `SERVER_STRAPI_URL` ayrımı yapıldı (public `NEXT_PUBLIC_STRAPI_URL` tarayıcı/medya URL'leri için korundu).

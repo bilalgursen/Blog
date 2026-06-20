@@ -1,0 +1,80 @@
+# ============================================================
+# Üretim (production) stack: PostgreSQL + Strapi + Next.js
+# Kullanım:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Portlar yalnızca 127.0.0.1'e bağlanır; dışarı açmak reverse proxy
+# (Nginx/Caddy/Traefik) görevidir. TLS'i proxy sonlandırır.
+# ============================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: blog_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  cms:
+    image: blog-cms:prod
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+      target: cms
+    container_name: blog_cms_prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB}
+      DATABASE_USERNAME: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_SSL: "false"
+      HOST: 0.0.0.0
+      PORT: 1337
+    ports:
+      - "127.0.0.1:1337:1337"
+    volumes:
+      - cms_uploads:/app/apps/cms/public/uploads
+
+  web:
+    image: blog-web:prod
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+      target: web
+      args:
+        # DERLEME ANINDA gömülür — tarayıcının göreceği herkese açık Strapi adresi.
+        NEXT_PUBLIC_STRAPI_URL: ${NEXT_PUBLIC_STRAPI_URL}
+    container_name: blog_web_prod
+    restart: unless-stopped
+    depends_on:
+      - cms
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Server-side fetch container ağı üzerinden Strapi'ye ulaşır.
+      STRAPI_INTERNAL_URL: http://cms:1337
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  postgres_data:
+  cms_uploads:
