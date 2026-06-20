@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-21
+
+- **fix(docker): web ↔ Strapi ve cms ↔ Postgres servis-içi ağ erişimi düzeltildi.**
+  - `cms`: `POSTGRES_HOST: db` eklendi — `.env`'deki `localhost` sızması nedeniyle cms `localhost:5432`'yi sonsuza dek bekliyordu.
+  - `web`: `STRAPI_INTERNAL_URL: http://cms:1337` eklendi; `src/lib/strapi.ts` server-side fetch için `SERVER_STRAPI_URL` ayrımı yapıldı (public `NEXT_PUBLIC_STRAPI_URL` tarayıcı/medya URL'leri için korundu).
+  - `docs/docker-setup.md`: ortam değişkenleri tablosu ve sorun giderme (CMS bekleme, `motion/react` not found, `ECONNREFUSED 1337`) güncellendi.
+
 ## 2026-06-10
 
 - **chore(web): shadcn UI bileşenleri registry'den yeniden kuruldu (`base-maia`).**

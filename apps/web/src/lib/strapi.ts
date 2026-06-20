@@ -1,7 +1,16 @@
 import type { BlocksContent } from "@/src/components/blocks-renderer"
 
+/** Public Strapi base URL — exposed to the browser (media URLs, links). */
 export const STRAPI_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337"
+
+/**
+ * Server-side base URL used for fetch from Server Components.
+ * In Docker the web container reaches Strapi via the `cms` service host,
+ * not `localhost`. Falls back to the public URL for local (non-Docker) dev.
+ */
+const SERVER_STRAPI_URL =
+  process.env.STRAPI_INTERNAL_URL ?? STRAPI_URL
 
 /** Strapi media (Single media) shape, flattened as in Strapi 5. */
 export interface StrapiMedia {
@@ -50,7 +59,7 @@ export function mediaUrl(url: string | undefined | null): string | null {
 }
 
 async function strapiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${STRAPI_URL}/api${path}`, {
+  const res = await fetch(`${SERVER_STRAPI_URL}/api${path}`, {
     headers: { "Content-Type": "application/json" },
     // Revalidate periodically so published changes show up without a redeploy.
     next: { revalidate: 60 },
