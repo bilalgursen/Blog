@@ -1,0 +1,72 @@
+# syntax=docker/dockerfile:1
+
+# ============================================================
+# Üretim (production) imajı.
+# Tek Dockerfile içinde iki ayrı çalıştırma target'ı üretir:
+#   - target: web  -> Next.js standalone sunucu (:3000)
+#   - target: cms  -> Strapi 5 sunucu (:1337)
+# Derleme tek "builder" katmanında yapılır, runner'lar ince tutulur.
+# ============================================================
+
+# ---- Base: Node 22 + pnpm ----
+FROM node:22-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    python3 \
+    make \
+    g++ \
+  && rm -rf /var/lib/apt/lists/*
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
+ENV PNPM_HOME="/pnpm" \
+    PATH="/pnpm:$PATH"
+RUN pnpm config set store-dir /pnpm/store
+WORKDIR /app
+
+# ---- Builder: tüm bağımlılıkları kur, her iki uygulamayı derle ----
+FROM base AS builder
+ENV NODE_ENV=production
+
+# NEXT_PUBLIC_* değişkenleri DERLEME ANINDA client bundle'a gömülür.
+# Bu yüzden web'in tarayıcıya açık Strapi adresi build ARG olarak verilir.
+ARG NEXT_PUBLIC_STRAPI_URL=http://localhost:1337
+ENV NEXT_PUBLIC_STRAPI_URL=$NEXT_PUBLIC_STRAPI_URL
+
+# Önce manifestler (katman cache'i için), sonra install
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/cms/package.json apps/cms/package.json
+COPY packages/db/package.json packages/db/package.json
+RUN pnpm install --frozen-lockfile
+
+# Kaynağı kopyala ve derle
+COPY . .
+RUN pnpm --filter web build \
+ && pnpm --filter cms build
+
+# Strapi'yi kendi kendine yeten (production node_modules dahil) klasöre çıkar
+RUN pnpm --filter cms deploy --prod /app/cms-deploy
+
+# ---- Web runner: Next.js standalone ----
+FROM base AS web
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+# standalone çıktısı monorepo köküyle birlikte apps/web/server.js üretir
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]
+
+# ---- CMS runner: Strapi ----
+FROM base AS cms
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=1337
+WORKDIR /app
+COPY --from=builder /app/cms-deploy ./
+EXPOSE 1337
+CMD ["pnpm", "start"]

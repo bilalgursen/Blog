@@ -1,0 +1,48 @@
+{
+  // --- Performans: ağır klasörleri dosya izleyiciden çıkar (Cursor/VS Code CPU/RAM düşer) ---
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/.turbo/**": true,
+    "**/.strapi/**": true,
+    "**/.cache/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.git/**": true,
+    "**/coverage/**": true,
+    "**/apps/cms/public/uploads/**": true
+  },
+
+  // --- Performans: aramayı (Cmd+Shift+F) ve hızlı-aç listesini hafiflet ---
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/.turbo": true,
+    "**/.strapi": true,
+    "**/.cache": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/pnpm-lock.yaml": true,
+    "**/apps/cms/public/uploads": true
+  },
+
+  // --- Performans: TypeScript sunucusu tüm node_modules'ü taramasın ---
+  "files.exclude": {
+    "**/.next": true,
+    "**/.turbo": true,
+    "**/.strapi": true,
+    "**/.cache": true
+  },
+
+  // TS sunucusuna daha fazla bellek ver ama otomatik tip-edinmeyi kapat (monorepo'da CPU yer)
+  "typescript.tsserver.maxTsServerMemory": 3072,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.tsserver.watchOptions": {
+    "watchFile": "useFsEvents",
+    "watchDirectory": "useFsEvents",
+    "fallbackPolling": "dynamicPriority"
+  },
+
+  // Monorepo kökünden değil, açtığın workspace'ten TS sürümünü kullan
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

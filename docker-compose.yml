@@ -43,6 +43,7 @@ services:
     environment:
       DATABASE_CLIENT: postgres
       DATABASE_HOST: db
+      POSTGRES_HOST: db
       DATABASE_PORT: 5432
       DATABASE_NAME: ${POSTGRES_DB:-blog}
       DATABASE_USERNAME: ${POSTGRES_USER:-blog}
@@ -70,6 +71,7 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_SSL: "false"
+      STRAPI_INTERNAL_URL: http://cms:1337
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"

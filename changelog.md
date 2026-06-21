@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-06-21
+
+- **perf(web): Strapi webhook revalidation kaldırıldı; zaman temelli yenilenmeye geçildi.**
+  - `apps/web/src/lib/strapi.ts`: içerik `revalidate: 60` ile dakikada bir tazelenir (stale-while-revalidate; Strapi yükü trafikten bağımsız, route başına ~1 istek/dk). Her publish/update'te revalidation tetikleyen otomatik webhook kaldırıldı.
+  - `apps/web/src/app/api/revalidate/route.ts`: endpoint korunuyor ama artık **manuel on-demand** kullanım için (acil düzenleme); doküman yorumları güncellendi.
+  - `docs/local-development.md`: revalidation bölümü webhook kurulumundan manuel `curl` tetiklemeye göre yeniden yazıldı.
+  - Strapi admin panelinde tanımlı webhook'un **elle silinmesi** gerekir (Settings → Webhooks).
+
+- **fix(cms): Public role'e blog okuma izinleri bootstrap'ta otomatik verildi (403 düzeltmesi).**
+  - `apps/cms/src/index.ts` `bootstrap`: Public role'e `article`, `category`, `tag` için `find`/`findOne` izinleri idempotent şekilde eklenir.
+  - Sebep: taze bir veritabanında (örn. Docker'ın kendi Postgres'i) bu izinler yoktu; frontend'in `/api/articles` istekleri **403** dönüyordu. Native ve Docker ayrı DB kullandığı için sorun yalnızca Docker'da görülüyordu.
+  - Artık her açılışta eksik izinler tamamlanır; elle Strapi admin'den ayarlamaya gerek yok.
+
+- **feat(web): Strapi publish → anında frontend güncellemesi (on-demand revalidation).**
+  - `apps/web/src/app/api/revalidate/route.ts`: `REVALIDATE_SECRET` ile doğrulanan POST endpoint; `revalidateTag("articles")` çağırır.
+  - `apps/web/src/lib/strapi.ts`: tüm article fetch'leri `tags: ["articles"]` ile etiketlendi (`ARTICLES_TAG` export). `revalidate: 60` güvenlik ağı olarak kaldı.
+  - `.env` / `.env.example`: `REVALIDATE_SECRET` eklendi.
+  - Kurulum: Strapi admin → Settings → Webhooks → publish/update olayında `POST {WEB_URL}/api/revalidate?secret=...` tetiklenir. Detay: `docs/local-development.md`.
+  - Not: native `pnpm dev:web` ile Docker web container'ı aynı anda çalıştırılırsa `.next` (bind-mount) bozulur → Turbopack cache hatası. İkisi birlikte çalıştırılmamalı.
+
+- **perf(web): editör performansı + Strapi'siz çalışma düzeltildi.**
+  - `.vscode/settings.json` eklendi: `node_modules`, `.next`, `.turbo`, `.strapi`, `dist` klasörleri dosya izleyici/arama/TS dışına alındı (Cursor'ın sürekli yüksek CPU tüketimi giderildi).
+  - `apps/web/src/lib/strapi.ts`: CMS'e ulaşılamadığında (`pnpm dev:web` tek başına) artık hata fırlatmıyor; uyarı loglayıp boş veri dönüyor. Böylece ana sayfa ve `/blog` Strapi kapalıyken de açılıyor (500 yerine 200).
+
+- **docs(dev): yerel geliştirme & performans rehberi + hafif dev scriptleri eklendi.**
+  - `pnpm dev`'in iki ağır sunucuyu (Next.js + `strapi develop`) paralel çalıştırdığı, bu yüzden makineyi zorladığı açıklandı.
+  - `package.json`: `dev:cms:start` (Strapi'yi bir kez build edip watch'sız çalıştırır) ve `dev:light` (Strapi watch'sız + Next dev birlikte, `Ctrl+C` ile temiz kapanış) scriptleri eklendi.
+  - Dokümantasyon: `docs/local-development.md` — komut karşılaştırma tablosu, `dev:light` çalışma mantığı ve hızlı teşhis (Activity Monitor / `top`).
+
+- **docs(deploy): sunucu (production) yayına alma kurulumu + üretim Docker dosyaları eklendi.**
+  - `docker/Dockerfile.prod`: multi-stage; `web` (Next.js standalone) ve `cms` (Strapi, `pnpm deploy --prod`) target'ları.
+  - `docker-compose.prod.yml`: db + cms + web üretim stack'i; portlar `127.0.0.1`'e bağlı (reverse proxy önünde).
+  - `apps/web/next.config.ts`: `output: "standalone"` + `outputFileTracingRoot` (monorepo) — ince çalıştırma imajı.
+  - `package.json`: `docker:prod:up|down|logs` scriptleri.
+  - `.env.example`: `NEXT_PUBLIC_STRAPI_URL` + `STRAPI_API_TOKEN` ve build-time/runtime URL açıklaması.
+  - Dokümantasyon: `docs/deployment.md` (gereksinimler, env, adımlar, reverse proxy/HTTPS, migration, yedekleme, sorun giderme).
+
+- **fix(docker): web ↔ Strapi ve cms ↔ Postgres servis-içi ağ erişimi düzeltildi.**
+  - `cms`: `POSTGRES_HOST: db` eklendi — `.env`'deki `localhost` sızması nedeniyle cms `localhost:5432`'yi sonsuza dek bekliyordu.
+  - `web`: `STRAPI_INTERNAL_URL: http://cms:1337` eklendi; `src/lib/strapi.ts` server-side fetch için `SERVER_STRAPI_URL` ayrımı yapıldı (public `NEXT_PUBLIC_STRAPI_URL` tarayıcı/medya URL'leri için korundu).
+  - `docs/docker-setup.md`: ortam değişkenleri tablosu ve sorun giderme (CMS bekleme, `motion/react` not found, `ECONNREFUSED 1337`) güncellendi.
+
 ## 2026-06-10
 
 - **chore(web): shadcn UI bileşenleri registry'den yeniden kuruldu (`base-maia`).**

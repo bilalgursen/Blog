@@ -11,6 +11,8 @@
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:web": "pnpm --filter web dev",
     "dev:cms": "pnpm --filter cms develop",
+    "dev:cms:start": "pnpm --filter cms build && pnpm --filter cms start",
+    "dev:light": "pnpm --filter cms build && sh -c 'trap \"kill 0\" INT TERM; pnpm --filter cms start & pnpm --filter web dev & wait'",
     "build": "pnpm --recursive --filter \"./apps/*\" build",
     "build:web": "pnpm --filter web build",
     "build:cms": "pnpm --filter cms build",
@@ -27,7 +29,10 @@
     "docker:up:detach": "docker-compose up --build -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "docker:reset": "docker-compose down -v"
+    "docker:reset": "docker-compose down -v",
+    "docker:prod:up": "docker compose -f docker-compose.prod.yml up -d --build",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
+    "docker:prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

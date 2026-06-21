@@ -24,7 +24,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("antialiased", fontMono.variable, "font-sans", inter.variable, instrumentSerifHeading.variable)}
     >
-      <body>
+      {/* suppressHydrationWarning: ColorZilla gibi tarayıcı eklentileri body'ye
+          `cz-shortcut-listen` vb. öznitelik enjekte edip hydration uyarısı üretir. */}
+      <body suppressHydrationWarning>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

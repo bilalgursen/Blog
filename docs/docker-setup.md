@@ -44,7 +44,12 @@ docker-compose.yml
 
 ## Ortam Değişkenleri
 
-Kök `.env` dosyası tüm servisler tarafından okunur. Docker içinde veritabanı host'u otomatik `db` olarak ayarlanır; `.env` içindeki `POSTGRES_HOST=localhost` yalnızca yerel (Docker dışı) geliştirme içindir.
+Kök `.env` dosyası tüm servisler tarafından okunur. Docker içinde servisler birbirine **servis adıyla** erişir (`localhost` değil); compose bu host'ları override eder:
+
+| Değişken | Docker içi değer | Neden |
+| --- | --- | --- |
+| `POSTGRES_HOST` (web + cms) | `db` | `.env` içindeki `localhost` yalnızca Docker dışı geliştirme içindir; cms/web Postgres'e `db:5432` üzerinden ulaşır |
+| `STRAPI_INTERNAL_URL` (web) | `http://cms:1337` | Server Component fetch'i Strapi'ye container ağından ulaşır; tarayıcıya giden `NEXT_PUBLIC_STRAPI_URL` (`localhost:1337`) medya/link URL'leri için ayrı tutulur |
 
 Varsayılan veritabanı kimlik bilgileri:
 
@@ -90,3 +95,9 @@ pnpm dev
 **Eski node_modules volume:** `pnpm docker:reset` ardından yeniden `docker compose up --build`.
 
 **Strapi yavaş ilk açılış:** Admin paneli derlemesi ilk seferde 1–2 dakika sürebilir; normaldir.
+
+**CMS sürekli `PostgreSQL bekleniyor (localhost:5432)` yazıyor:** `.env`'deki `POSTGRES_HOST=localhost` cms container'ına sızmış demektir. cms servisinde `POSTGRES_HOST: db` set edilmiş olmalı (`docker-compose.yml`).
+
+**Web 500 — `Module not found: motion/react` (veya yeni eklenen bir paket):** `dev_node_modules` volume'ü eski lockfile ile dolmuş. `pnpm docker:reset` ile sıfırlayın ya da hızlı çözüm: `docker compose exec web pnpm install` + `rm -rf apps/web/.next` ardından `docker compose up -d --force-recreate web`.
+
+**Web 500 — `ECONNREFUSED 127.0.0.1:1337`:** Web, Strapi'ye `localhost` üzerinden ulaşmaya çalışıyor. `STRAPI_INTERNAL_URL=http://cms:1337` web servisinde tanımlı olmalı (`docker-compose.yml`).
