@@ -10,6 +10,47 @@ nasıl rahatlatacağını açıklar.
 
 ---
 
+## ⚠️ Native ve Docker AYRI veritabanı kullanır
+
+- **Native** (`pnpm dev:cms`): host'taki yerel PostgreSQL'e bağlanır (`POSTGRES_HOST=localhost`).
+- **Docker** (`pnpm docker:up`): compose'daki `blog_postgres` container'ına bağlanır (kendi `postgres_data` volume'u).
+
+Bu yüzden native'de gördüğün yazılar/ayarlar Docker'da **yok** (ve tersi). Örneğin
+Public rol izinleri her DB'de ayrı tutulur — bu, Docker'da `/api/articles` isteklerinin
+**403** dönmesinin sebebiydi. Çözüm olarak izinler artık `apps/cms/src/index.ts`
+`bootstrap`'ında koddan veriliyor; böylece hangi DB olursa olsun açılışta otomatik ayarlanır.
+
+---
+
+## 🔄 Strapi'de yayınlanan içerik ne zaman görünür? (revalidation)
+
+`apps/web/src/lib/strapi.ts`, Strapi yanıtlarını `next: { revalidate: 60, tags: ["articles"] }`
+ile önbelleğe alır. Bu yüzden bir yazıyı yayınladığında frontend yeni içeriği
+**en geç 60 sn** içinde gösterir (ilk ziyaretçi arka planda cache'i tazeler).
+
+> Otomatik Strapi webhook'u **bilinçli olarak kaldırıldı**: her publish/update'te
+> revalidation tetiklemek yerine zaman temelli (60 sn) yenilenme tercih edildi.
+> Yük sabittir — ziyaretçi sayısından bağımsız olarak Strapi'ye route başına
+> dakikada ~1 istek gider (stale-while-revalidate).
+
+**Acil bir düzenlemeyi beklemeden yansıtmak için (manuel on-demand revalidation):**
+
+`apps/web/src/app/api/revalidate/route.ts` endpoint'i `revalidateTag("articles")`
+çağırır ve `REVALIDATE_SECRET` ile korunur (`.env`'de tanımlı). Elle tetikle:
+
+```bash
+curl -X POST "http://localhost:3000/api/revalidate?secret=<REVALIDATE_SECRET>"
+# → {"revalidated":true,...}
+```
+
+Çağrıdan sonra yazı saniyesinde frontend'e düşer.
+
+> ⚠️ **Docker notu:** Native `pnpm dev:web` ile Docker web container'ını **aynı anda çalıştırma**:
+> ikisi de bind-mount üzerinden aynı `apps/web/.next` klasörüne yazıp Turbopack
+> cache'ini bozar. Bu olduysa: `rm -rf apps/web/.next` ile temizle.
+
+---
+
 ## ⚠️ `pnpm dev` neden makineyi zorluyor?
 
 Kök `package.json`'daki varsayılan komut **iki dev sunucusunu aynı anda** başlatır:
@@ -28,6 +69,27 @@ Bu, `apps/web` (Next.js) **ve** `apps/cms` (`strapi develop`) süreçlerini para
 
 > **Sonuç:** İki ayrı Node süreci + iki ayrı derleme zinciri aynı anda döner.
 > Çoğu zaman ikisine birden ihtiyacın yoktur.
+
+---
+
+## 🪶 En hafif kurulum: yalnızca `dev:web`
+
+Frontend/arayüz geliştirirken **Strapi'yi açman gerekmez.** `apps/web/src/lib/strapi.ts`
+CMS'e ulaşamadığında hata fırlatmaz; uyarı loglar ve boş veri döner. Sonuç:
+
+- `pnpm dev:web` tek başına çalışır, ana sayfa ve `/blog` **500 değil 200** döner
+  (yazı listesi boş görünür — "Henüz yayınlanmış bir yazı yok.").
+- Strapi'yi yalnızca **gerçek içerik görmen** ya da içerik tipi düzenlemen gerektiğinde aç.
+
+> Bu, en az kaynak tüketen ve makineyi en az yoran yöntemdir.
+
+### 🩺 Editör (Cursor/VS Code) kasıyorsa
+
+Repo kökündeki `.vscode/settings.json`, ağır klasörleri (`node_modules`, `.next`,
+`.turbo`, `.strapi`, `dist`) dosya izleyici/arama/TypeScript taramasından çıkarır.
+Bu dosya silinirse editör tüm `node_modules`'ü (≈1.3 GB) indekslemeye çalışır ve
+CPU sürekli yükselir. Ayrıca dev sunucusunu **Cursor'ın entegre terminalinde değil,
+ayrı bir terminalde** çalıştırmak editörün bellek yükünü azaltır.
 
 ---
 

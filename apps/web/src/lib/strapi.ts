@@ -58,17 +58,38 @@ export function mediaUrl(url: string | undefined | null): string | null {
   return url.startsWith("http") ? url : `${STRAPI_URL}${url}`
 }
 
-async function strapiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${SERVER_STRAPI_URL}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
-    // Revalidate periodically so published changes show up without a redeploy.
-    next: { revalidate: 60 },
-  })
+/** Cache tag for all article fetches — allows manual on-demand revalidation. */
+export const ARTICLES_TAG = "articles"
+
+/**
+ * Fetches from Strapi, returning `null` instead of throwing when the CMS is
+ * unreachable (e.g. running only `pnpm dev:web` without Strapi) or responds
+ * with an error. Callers fall back to empty data so pages still render.
+ */
+async function strapiFetch<T>(path: string): Promise<T | null> {
+  let res: Response
+  try {
+    res = await fetch(`${SERVER_STRAPI_URL}/api${path}`, {
+      headers: { "Content-Type": "application/json" },
+      // Tagged + time-based revalidation. Stale-while-revalidate: served from
+      // cache for 60s, then the first request refreshes it in the background —
+      // ~1 Strapi hit per route per minute regardless of traffic. The `articles`
+      // tag also allows manual on-demand purges via /api/revalidate.
+      next: { revalidate: 60, tags: [ARTICLES_TAG] },
+    })
+  } catch {
+    console.warn(
+      `[strapi] CMS'e ulaşılamadı (${SERVER_STRAPI_URL}). İçerik boş döndü. ` +
+        `Strapi'yi başlatmak için: pnpm dev:cms`
+    )
+    return null
+  }
 
   if (!res.ok) {
-    throw new Error(
-      `Strapi request failed: ${res.status} ${res.statusText} (${path})`
+    console.warn(
+      `[strapi] İstek başarısız: ${res.status} ${res.statusText} (${path})`
     )
+    return null
   }
 
   return res.json() as Promise<T>
@@ -84,7 +105,7 @@ export async function getArticles(): Promise<Article[]> {
   const json = await strapiFetch<StrapiListResponse<Article>>(
     `/articles?${params.toString()}`
   )
-  return json.data
+  return json?.data ?? []
 }
 
 /** A single published article by its slug, or null if not found. */
@@ -97,5 +118,5 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
   const json = await strapiFetch<StrapiListResponse<Article>>(
     `/articles?${params.toString()}`
   )
-  return json.data[0] ?? null
+  return json?.data[0] ?? null
 }
