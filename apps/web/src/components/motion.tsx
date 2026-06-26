@@ -1,8 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { motion } from "motion/react"
-import type { ComponentProps, ReactNode } from "react"
+import type { ReactNode } from "react"
 
 const EASE = [0.22, 1, 0.36, 1] as const
 
@@ -27,28 +26,5 @@ export function FadeIn({
     >
       {children}
     </motion.div>
-  )
-}
-
-const MotionLink = motion.create(Link)
-
-/** Liste kartlarını sırayla sahneye sokan + hover'da hafifçe kaldıran link. */
-export function CardLink({
-  index = 0,
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof Link> & { index?: number }) {
-  return (
-    <MotionLink
-      {...props}
-      className={className}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.07, ease: EASE }}
-      whileHover={{ y: -4 }}
-    >
-      {children}
-    </MotionLink>
   )
 }

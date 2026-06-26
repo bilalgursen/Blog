@@ -1,6 +1,53 @@
 # Changelog
 
+## 2026-06-27
+
+- **chore(skills): `ui-ux-pro-max` skill'i projeye özel sadeleştirildi (fazlalık stack'ler kaldırıldı).**
+  - `scripts/core.py`: `STACK_CONFIG` 11 stack'ten → yalnızca `react` + `shadcn`'e indirildi. Kaldırılanlar (`html-tailwind`, `nextjs`, `vue`, `nuxtjs`, `nuxt-ui`, `svelte`, `swiftui`, `react-native`, `flutter`) zaten **var olmayan CSV dosyalarına** işaret ediyordu; `--stack html-tailwind` (SKILL.md'nin "default" dediği) bu yüzden hata veriyordu. Artık `--stack` yalnızca `{react, shadcn}` kabul ediyor.
+  - `scripts/search.py`: docstring + `--stack` help metni güncellendi.
+  - `SKILL.md`: "9 stacks" pazarlaması ve bozuk `html-tailwind` default'u kaldırıldı; frontmatter description, "Available Stacks" tablosu ve örnek iş akışı projenin sabit stack'ine (Next.js + React + Tailwind v4 + shadcn/ui + Base UI + Lucide + Motion) ve blog/portfolio bağlamına göre yeniden yazıldı. İkon rehberi `lucide-react`'e sabitlendi.
+  - Domain veri dosyaları (styles, colors, typography, ux, charts…) korundu — bunlar stack'ten bağımsız tasarım zekâsı.
+
+- **refactor(web): ana sayfa sadeleştirildi — dekoratif arka plan ışıkları ve gereksiz animasyonlar kaldırıldı.**
+  - `home-showcase.tsx`: arkadaki iki yuvarlak bulanık ışık (`blur-3xl` blob) ve bunlara bağlı parallax (`useScroll`/`useTransform`/`blobY`) kaldırıldı. Hero metnindeki satır satır kademeli (stagger) animasyonlar tek, yumuşak bir açılış fade'ine indirildi. Kart hover'da kalkma (`whileHover y`) ve kapak görselinin hover'da büyümesi (`group-hover:scale-105`) kaldırıldı. Blog kartları artık animasyonsuz, statik akıyor.
+  - `landing-page.tsx`: üstteki scroll ilerleme çubuğu (`ScrollProgress`) kaldırıldı.
+  - Temizlik: kullanılmayan `components/motion-primitives.tsx` (`Reveal` + `ScrollProgress`) silindi. `prefers-reduced-motion` desteği ve kapak View Transition morph'u korunur.
+
+## 2026-06-22
+
+- **feat(web+cms): hero ile blog tek iç içe akışta birleştirildi; profil CMS'ten gelir (template).**
+  - **CMS:** `apps/cms/src/api/profile` — yeni `profile` single-type (`name`, `role`, `tagline`, `intro`, `location`, `available`). `src/index.ts` bootstrap'ı: public `find` izni verir ve **boş veritabanında varsayılan profil seed'ler** (`seedDefaultProfile`) → klon ilk açılışta da hero dolu gelir.
+  - **web:** `lib/strapi.ts` → `getProfile()` + `Profile` tipi + `DEFAULT_PROFILE` (CMS erişilemezse şablon varsayılanı). `app/page.tsx` profil ve yazıları paralel çeker.
+  - **Birleştirme:** `hero-section.tsx` + `blog-section.tsx` → tek `home-showcase.tsx`. Hero metni ile **öne çıkan (en yeni) yazı yan yana**; kalan yazılar aynı akışta altında. Ayrı section/başlık/separator yok ("iç içe"). Parallax + scroll-reveal + kapak VT morph'u korunur.
+  - **Template:** Site sahibi adını/metnini yalnızca Strapi admin → Content Manager → Profile'dan girer; kod değişikliği gerekmez. Detay `docs/landing-portfolio.md`.
+  - Temizlik: `features/portfolio/data.ts` kaldırıldı (profil artık CMS).
+
+- **feat(web): showcase → detay geçişine View Transitions morph'u; header ve `/blog` liste sayfası kaldırıldı.**
+  - `app/blog/page.tsx` silindi: ayrı "tüm yazılar" liste sayfası kaldırıldı (patlıyordu ve gereksizdi). Yayınlanmış tüm yazılar artık doğrudan ana sayfadaki blog sergisinde listelenir (`app/page.tsx` artık `slice` yapmıyor). `/blog/[slug]` detay sayfası korunur.
+  - `landing-nav.tsx` silindi: üst menü (header) kaldırıldı. Container yalnızca `ScrollProgress` + hero + blog sergiler.
+  - **View Transitions API:** `components/transition-link.tsx` (`TransitionLink`) navigasyonu `document.startViewTransition` içine alır; `view-transition.ts` `coverVtName(slug)` üretir. Showcase kartının kapak görseli ile detay sayfasının kapağı aynı `view-transition-name`'i taşıyıp sayfa geçişinde morph olur. Detay kapağı, morph bozulmasın diye Motion giriş animasyonundan çıkarıldı.
+  - `globals.css`: `::view-transition-*` süre/easing'i proje standardına (`0.4s`, `cubic-bezier(0.22,1,0.36,1)`) çekildi; `prefers-reduced-motion`'da kapatıldı. `scroll-padding-top` 5rem → 2rem (header gitti).
+  - `hero-section.tsx`: `/blog` CTA'sı kaldırıldı (tek CTA → `#blog`). `blog-section.tsx`: "Tüm yazılar" butonu kaldırıldı, kartlar `TransitionLink` kullanır.
+  - Temizlik: `data.ts` yalnız `profile`; `components/motion.tsx` kullanılmayan `CardLink` çıkarıldı (yalnız `FadeIn` kaldı).
+  - Not: `startViewTransition` desteklenmeyen tarayıcıda normal `Link` navigasyonuna düşülür. Kural istisnası (VT API) `docs/landing-portfolio.md`'de belgelendi.
+
+- **refactor(web): ana sayfa landing'i sadeleştirildi — yalnızca hero + blog sergisi.**
+  - Kaldırılan bölümler: `about-section.tsx`, `projects-section.tsx`, `contact-section.tsx`.
+  - `containers/landing-page.tsx`: artık sadece `LandingNav` + `HeroSection` + `BlogSection`.
+  - `landing-nav.tsx`: bölüm linkleri ve iletişim CTA'sı kaldırıldı; sade isim + "Tüm yazılar" (`/blog`) linki.
+  - `hero-section.tsx`: CTA'lar blog'a yönlendirildi ("Yazıları oku" → `#blog`, "Tüm yazılar" → `/blog`).
+  - `data.ts`: yalnızca `profile` kaldı (skills/stats/projects/socials/navLinks kaldırıldı).
+  - `motion-primitives.tsx`: kullanılmayan `Parallax` ve `FloatIn` çıkarıldı (`Reveal` + `ScrollProgress` kaldı).
+  - Doküman: `docs/landing-portfolio.md` güncellendi.
+
 ## 2026-06-21
+
+- **feat(web): ana sayfa portföy landing'ine dönüştürüldü (Motion + parallax + smooth scroll).**
+  - `apps/web/src/features/portfolio/` eklendi: `data.ts` (statik içerik), `containers/landing-page.tsx` ve bölüm bileşenleri (hero, about, projects, blog, contact) + `landing-nav.tsx`.
+  - `components/motion-primitives.tsx`: yeniden kullanılabilir `Reveal` (whileInView), `Parallax` (`useScroll`+`useTransform`+`useSpring`), `ScrollProgress` ve `FloatIn`. Easing `[0.22,1,0.36,1]`; `useReducedMotion` ile erişilebilir.
+  - `apps/web/src/app/page.tsx`: artık portföy landing'i render eder; Strapi'den en yeni 3 yazıyı çekip blog bölümüne `BlogPreview[]` olarak iletir. Tam blog listesi `/blog`'da kalır.
+  - `apps/web/src/app/globals.css`: ankor gezinmesi için `scroll-behavior: smooth` + `scroll-padding-top` (yapışkan menü payı), `prefers-reduced-motion` istisnası.
+  - Doküman: `docs/landing-portfolio.md`.
 
 - **perf(web): Strapi webhook revalidation kaldırıldı; zaman temelli yenilenmeye geçildi.**
   - `apps/web/src/lib/strapi.ts`: içerik `revalidate: 60` ile dakikada bir tazelenir (stale-while-revalidate; Strapi yükü trafikten bağımsız, route başına ~1 istek/dk). Her publish/update'te revalidation tetikleyen otomatik webhook kaldırıldı.

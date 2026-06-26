@@ -125,5 +125,40 @@
     }
   html {
     @apply font-sans;
+    /* Ankor bağlantılarında yumuşak (smooth) kaydırma. */
+    scroll-behavior: smooth;
+    /* Ankor hedeflerinin üst kenara yapışmaması için hizalama payı. */
+    scroll-padding-top: 2rem;
     }
+
+  /* Hareket azaltma tercihinde smooth scroll'u devre dışı bırak. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+      }
+    }
+}
+
+/* ── View Transitions ────────────────────────────────────────────────────
+   Showcase kartı → yazı detayı geçişinde kapak görseli morph olur
+   (`view-transition-name`, bkz. features/portfolio/view-transition.ts).
+   Geçiş süresi/easing'i proje standardına çekilir. */
+::view-transition-group(*) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Hareket azaltma tercihinde geçiş animasyonunu kapat (anında değişim). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

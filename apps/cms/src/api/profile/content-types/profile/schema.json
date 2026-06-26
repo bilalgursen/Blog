@@ -1,0 +1,38 @@
+{
+  "kind": "singleType",
+  "collectionName": "profile",
+  "info": {
+    "singularName": "profile",
+    "pluralName": "profiles",
+    "displayName": "Profile",
+    "description": "Site sahibinin kimligi (hero basligi). Sablon: kendi adinizi ve metinlerinizi buraya girin."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "default": "Adiniz"
+    },
+    "role": {
+      "type": "string",
+      "default": "Yazar"
+    },
+    "tagline": {
+      "type": "string"
+    },
+    "intro": {
+      "type": "text"
+    },
+    "location": {
+      "type": "string"
+    },
+    "available": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

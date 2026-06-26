@@ -31,6 +31,10 @@
         "files"
       ]
     },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
     "content": {
       "type": "blocks"
     }
