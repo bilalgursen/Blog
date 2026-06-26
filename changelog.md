@@ -2,6 +2,15 @@
 
 ## 2026-06-27
 
+- **feat(web): imleci takip eden ve tıklanabilir öğelerin şeklini alan özel cursor eklendi.**
+  - Yeni `components/shared/custom-cursor.tsx`: boş alanda küçük beyaz nokta olarak fareyi/trackpad'i Motion `useSpring` ile yumuşatarak takip eder; tıklanabilir öğelerin (`a, button, [role=button], input, textarea, select, label, summary, [data-cursor]`) üzerine gelince **o öğenin konumunu, boyutunu ve köşe yarıçapını alıp dolu kutuyla üzerine biner ve `mix-blend-difference` ile içeriği negatife çevirerek kaplar** (yunuses.com benzeri). Scroll/resize'da sarılan öğenin konumu güncel tutulur.
+  - **İvme:** boş alanda imlecin anlık hızı `useVelocity` ile ölçülüp yumuşatılarak `scale`'e map edilir; hızlandıkça yuvarlak nokta büyür (`MAX_SPEED`/`MAX_GROWTH` ile ayarlanır), yavaşlayınca eski boyutuna döner. Öğe sarma modunda (`dotMode → 0`) büyüme devre dışıdır ki kutu öğeyi tam kaplasın. Hız, kutunun köşesi yerine **ham imleç konumundan** (`px/py`) ölçülür; böylece öğeye morph sırasındaki konum sıçraması sahte hız üretip absürt büyümeye yol açmaz. `dotMode` boyut spring'iyle aynı tempoda yumuşatılır (`dotModeTarget` → `useSpring`); böylece öğeden **ayrılırken** kutu noktaya dönene kadar hız-büyümesi devreye girmez (ani balon bug'ı önlenir).
+  - **Köşe uyumu:** yakalanan öğe yuvarlak olmayan bir sarmalayıcıysa (örn. `<a class="block">`), alanı kaplayan ilk yuvarlak çocuğa (`Card` → `rounded-xl`, globals.css `--radius` türevi) inilir (`visualOf`); böylece kaplama kartların yuvarlak köşelerini tam sarar.
+  - **Not:** denenen "dönen dashed (marching-ants) çerçeve" varyantından vazgeçildi; hover'da öğe yine dolu beyaz ile (negatif) kaplanıyor.
+  - Yalnızca `pointer: fine` cihazlarda render edilir; dokunmatik cihazlarda ve `prefers-reduced-motion` tercihinde hiç çalışmaz.
+  - `app/globals.css`: `html.has-custom-cursor` aktifken native imleç gizlenir (sınıf JS ile yalnızca uygun cihazlarda eklenir).
+  - `app/layout.tsx`: `<CustomCursor />` `ThemeProvider` içinde global olarak mount edilir.
+
 - **chore(skills): `ui-ux-pro-max` skill'i projeye özel sadeleştirildi (fazlalık stack'ler kaldırıldı).**
   - `scripts/core.py`: `STACK_CONFIG` 11 stack'ten → yalnızca `react` + `shadcn`'e indirildi. Kaldırılanlar (`html-tailwind`, `nextjs`, `vue`, `nuxtjs`, `nuxt-ui`, `svelte`, `swiftui`, `react-native`, `flutter`) zaten **var olmayan CSV dosyalarına** işaret ediyordu; `--stack html-tailwind` (SKILL.md'nin "default" dediği) bu yüzden hata veriyordu. Artık `--stack` yalnızca `{react, shadcn}` kabul ediyor.
   - `scripts/search.py`: docstring + `--stack` help metni güncellendi.

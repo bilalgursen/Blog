@@ -137,6 +137,14 @@
       scroll-behavior: auto;
       }
     }
+
+  /* Özel cursor aktifken (fare/trackpad cihazları) native imleci gizle.
+     Sınıf, components/shared/custom-cursor.tsx tarafından JS ile eklenir;
+     dokunmatik cihazlarda ve reduced-motion'da eklenmez. */
+  html.has-custom-cursor,
+  html.has-custom-cursor * {
+    cursor: none;
+    }
 }
 
 /* ── View Transitions ────────────────────────────────────────────────────
