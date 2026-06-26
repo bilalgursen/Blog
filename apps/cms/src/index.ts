@@ -11,7 +11,33 @@ const PUBLIC_READ_ACTIONS = [
   "api::category.category.findOne",
   "api::tag.tag.find",
   "api::tag.tag.findOne",
+  // Single type: site sahibinin kimliği (hero başlığı).
+  "api::profile.profile.find",
 ]
+
+/**
+ * Şablon (template) deneyimi: depoyu klonlayıp ilk kez çalıştıran kişi için
+ * boş bir `profile` single-type'ı varsayılan metinlerle doldurur. Böylece
+ * frontend hero'su ilk açılışta da dolu gelir; kullanıcı Strapi admin'den
+ * yalnızca `name` ve diğer alanları kendine göre düzenler.
+ */
+async function seedDefaultProfile(strapi: Core.Strapi) {
+  const existing = await strapi.documents("api::profile.profile").findMany({})
+  if (existing && existing.length > 0) return
+
+  await strapi.documents("api::profile.profile").create({
+    data: {
+      name: "Adınız",
+      role: "Full-Stack Geliştirici",
+      tagline: "Modern web deneyimleri tasarlıyor ve geliştiriyorum.",
+      intro:
+        "Bu metni Strapi admin panelinden (Content Manager → Profile) düzenleyin. Kendi adınızı, rolünüzü ve tanıtımınızı buradan yönetirsiniz.",
+      location: "",
+      available: true,
+    },
+  })
+  strapi.log.info("[bootstrap] Varsayılan profil oluşturuldu (şablon).")
+}
 
 /**
  * Public role'e blog içeriği için okuma izinlerini (idempotent) verir.
@@ -58,5 +84,6 @@ export default {
    */
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await grantPublicReadPermissions(strapi)
+    await seedDefaultProfile(strapi)
   },
 }

@@ -1,80 +1,26 @@
-import Image from "next/image"
+import { getArticles, getProfile, mediaUrl } from "@/src/lib/strapi"
+import { LandingPage } from "@/src/features/portfolio/containers/landing-page"
+import type { BlogPreview } from "@/src/features/portfolio/components/home-showcase"
 
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card"
-import { CardLink } from "@/src/components/motion"
-import { getArticles, mediaUrl } from "@/src/lib/strapi"
-
-function formatDate(value: string | null) {
-  if (!value) return null
-  return new Date(value).toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
-
+/** Ana sayfa: tanıtım (CMS profili) + blog yazılarının tek iç içe akışı. */
 export default async function Page() {
-  const articles = await getArticles()
+  const [profile, articles] = await Promise.all([getProfile(), getArticles()])
 
-  return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-16">
-      <header className="mb-12">
-        <h1 className="font-heading text-5xl font-medium">Blog</h1>
-        <p className="mt-3 text-muted-foreground">
-          Son yazılar ve düşünceler.
-        </p>
-      </header>
-
-      {articles.length === 0 ? (
-        <p className="text-muted-foreground">
-          Henüz yayınlanmış bir yazı yok.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {articles.map((article, index) => {
-            const cover = mediaUrl(article.cover?.url)
-            return (
-              <CardLink
-                key={article.id}
-                index={index}
-                href={`/blog/${article.slug}`}
-              >
-                <Card className="h-full transition-shadow hover:ring-foreground/20">
-                  {cover && (
-                    <Image
-                      src={cover}
-                      alt={article.cover?.alternativeText ?? article.title}
-                      width={article.cover?.width ?? 600}
-                      height={article.cover?.height ?? 400}
-                      className="aspect-video w-full object-cover"
-                    />
-                  )}
-                  <CardHeader>
-                    <CardTitle className="text-lg leading-snug">
-                      {article.title}
-                    </CardTitle>
-                    {article.excerpt && (
-                      <CardDescription className="line-clamp-3">
-                        {article.excerpt}
-                      </CardDescription>
-                    )}
-                    {formatDate(article.publishedAt) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatDate(article.publishedAt)}
-                      </p>
-                    )}
-                  </CardHeader>
-                </Card>
-              </CardLink>
-            )
-          })}
-        </div>
-      )}
-    </main>
+  // Admin'de `featured` işaretli yazıyı başa al (öne çıkan kart). Stable sort:
+  // işaretli yoksa mevcut "en yeni başta" sırası korunur (template güvenli).
+  const ordered = [...articles].sort(
+    (a, b) => Number(b.featured) - Number(a.featured)
   )
+
+  const posts: BlogPreview[] = ordered.map((article) => ({
+    id: article.id,
+    title: article.title,
+    slug: article.slug,
+    excerpt: article.excerpt,
+    cover: mediaUrl(article.cover?.formats?.medium?.url ?? article.cover?.url),
+    coverAlt: article.cover?.alternativeText ?? null,
+    date: article.publishedAt,
+  }))
+
+  return <LandingPage profile={profile} posts={posts} />
 }

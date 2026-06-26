@@ -34,6 +34,8 @@ export interface Article {
   slug: string
   excerpt: string | null
   cover: StrapiMedia | null
+  /** Admin panelinden işaretlenir; ana sayfada "öne çıkan" olarak gösterilir. */
+  featured: boolean
   content: BlocksContent
   createdAt: string
   updatedAt: string
@@ -119,4 +121,42 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
     `/articles?${params.toString()}`
   )
   return json?.data[0] ?? null
+}
+
+/**
+ * Site sahibinin kimliği (hero başlığı). Strapi `profile` single-type'ından gelir.
+ * Bu projeyi klonlayan kişi adını/metnini Strapi admin'den girer (template).
+ */
+export interface Profile {
+  name: string
+  role: string | null
+  tagline: string | null
+  intro: string | null
+  location: string | null
+  available: boolean
+}
+
+interface StrapiSingleResponse<T> {
+  data: T | null
+  meta: Record<string, unknown>
+}
+
+/**
+ * CMS henüz doldurulmadıysa / erişilemiyorsa kullanılan şablon varsayılanı.
+ * Böylece klon ilk çalıştırmada da boş ekran yerine anlamlı içerik gösterir.
+ */
+export const DEFAULT_PROFILE: Profile = {
+  name: "Adınız",
+  role: "Yazar",
+  tagline: "Düşüncelerimi ve öğrendiklerimi burada paylaşıyorum.",
+  intro:
+    "Strapi admin panelinden (Content Manager → Profile) adınızı ve tanıtımınızı düzenleyin.",
+  location: null,
+  available: true,
+}
+
+/** Profil single-type'ını çeker; yoksa/erişilemezse şablon varsayılanına düşer. */
+export async function getProfile(): Promise<Profile> {
+  const json = await strapiFetch<StrapiSingleResponse<Profile>>("/profile")
+  return json?.data ?? DEFAULT_PROFILE
 }

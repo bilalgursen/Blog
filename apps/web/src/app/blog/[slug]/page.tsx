@@ -1,10 +1,11 @@
 import Image from "next/image"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 
 import { BlocksRenderer } from "@/src/components/blocks-renderer"
 import { FadeIn } from "@/src/components/motion"
+import { TransitionLink } from "@/src/features/portfolio/components/transition-link"
+import { coverVtName } from "@/src/features/portfolio/view-transition"
 import { getArticleBySlug, getArticles, mediaUrl } from "@/src/lib/strapi"
 
 interface PageProps {
@@ -48,14 +49,32 @@ export default async function ArticlePage({ params }: PageProps) {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-16">
-      <Link
+      <TransitionLink
         href="/"
         className="text-sm text-muted-foreground underline-offset-4 hover:underline"
       >
-        ← Tüm yazılar
-      </Link>
+        ← Geri
+      </TransitionLink>
 
       <article className="mt-8 break-words">
+        {/* Kapak: View Transition ile showcase kartından morph olur — bu yüzden
+            Motion giriş animasyonuna sarılmaz (ikisi çakışmasın). */}
+        {cover && (
+          <div
+            className="mb-10 overflow-hidden rounded-2xl"
+            style={{ viewTransitionName: coverVtName(slug) } as React.CSSProperties}
+          >
+            <Image
+              src={cover}
+              alt={article.cover?.alternativeText ?? article.title}
+              width={article.cover?.width ?? 1200}
+              height={article.cover?.height ?? 675}
+              className="aspect-video w-full object-cover"
+              priority
+            />
+          </div>
+        )}
+
         <FadeIn>
           <header className="mb-8">
             <h1 className="font-heading text-4xl font-medium sm:text-5xl">
@@ -72,20 +91,7 @@ export default async function ArticlePage({ params }: PageProps) {
           </header>
         </FadeIn>
 
-        {cover && (
-          <FadeIn delay={0.1}>
-            <Image
-              src={cover}
-              alt={article.cover?.alternativeText ?? article.title}
-              width={article.cover?.width ?? 1200}
-              height={article.cover?.height ?? 675}
-              className="mb-10 aspect-video w-full rounded-2xl object-cover"
-              priority
-            />
-          </FadeIn>
-        )}
-
-        <FadeIn delay={0.2}>
+        <FadeIn delay={0.1}>
           <div className="text-base">
             <BlocksRenderer content={article.content} />
           </div>
