@@ -2,6 +2,7 @@ import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/src/components/theme-provider"
+import { CustomCursor } from "@/src/components/shared/custom-cursor"
 import { cn } from "@/src/lib/utils";
 
 const instrumentSerifHeading = Instrument_Serif({subsets:['latin'],weight:['400'],variable:'--font-heading'});
@@ -27,7 +28,10 @@ export default function RootLayout({
       {/* suppressHydrationWarning: ColorZilla gibi tarayıcı eklentileri body'ye
           `cz-shortcut-listen` vb. öznitelik enjekte edip hydration uyarısı üretir. */}
       <body suppressHydrationWarning>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <CustomCursor />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
