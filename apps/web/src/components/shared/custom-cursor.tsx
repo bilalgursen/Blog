@@ -152,7 +152,13 @@ export function CustomCursor() {
       const visual = visualOf(el)
       const rect = visual.getBoundingClientRect()
       // Görselin kendi köşe yarıçapını okuyup padding kadar büyüterek saran his ver.
-      const elRadius = parseFloat(getComputedStyle(visual).borderTopLeftRadius) || 0
+      const rawRadius =
+        parseFloat(getComputedStyle(visual).borderTopLeftRadius) || 0
+      // `rounded-full` devasa bir yarıçap (≈3.3e7px) verir; bundan başka bir
+      // öğeye (örn. karta) geçerken `radius` spring'i bu kocaman değerden inerken
+      // kutu uzun süre dev bir daire olarak takılır. Görselde yarıçap zaten en
+      // fazla kısa kenarın yarısı kadar etkili olduğundan oraya kırpıyoruz.
+      const elRadius = Math.min(rawRadius, Math.min(rect.width, rect.height) / 2)
       return {
         x: rect.left - HOVER_PADDING,
         y: rect.top - HOVER_PADDING,
@@ -191,7 +197,19 @@ export function CustomCursor() {
 
     // Scroll/resize sırasında sarılan öğenin konumunu güncel tut.
     const onReflow = () => {
-      if (activeEl.current) setTarget(wrap(activeEl.current))
+      const el = activeEl.current
+      if (!el) return
+      // Sayfa geçişinde (View Transition) hedef sayfa en üste scroll olur ve bu
+      // listener tetiklenir; ancak tıklanan link artık DOM'dan kalkmıştır. Bağlı
+      // olmayan bir öğenin getBoundingClientRect()'i 0,0,0,0 döndürdüğünden kutu
+      // sol üste sıçrardı. Öğe kopmuşsa son fare konumunda nokta moduna düş.
+      if (!el.isConnected) {
+        activeEl.current = null
+        dotModeTarget.set(1)
+        setDot(px.get(), py.get())
+        return
+      }
+      setTarget(wrap(el))
     }
 
     const onLeave = () => setVisible(false)

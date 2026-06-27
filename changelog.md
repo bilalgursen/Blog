@@ -2,6 +2,20 @@
 
 ## 2026-06-27
 
+- **feat(web): üst köşelere, özel cursor'ın negatif alanıyla beliren iki SVG ikon eklendi.**
+  - `public/icons/allah.svg` (sağ üst) ve `public/icons/muhammed.svg` (sol üst) eklendi.
+  - Yeni `components/shared/corner-icons.tsx`: iki ikon üst köşelerde **`fixed`**, **aynı boyutta** (56px). İkonlar CSS `mask` + **`bg-background`** ile boyandığından **normalde görünmezdir**; yalnızca üzerlerinden bir negatif alan (beyaz + `mix-blend-difference`) geçince belirirler.
+  - Hover edilen köşeyi gerçek `CustomCursor` (`data-cursor` + `rounded-full`) yuvarlak sarıp negatifle gösterir; aynı anda **diğer köşedeki ikon yalnızca kendi negatif şekliyle** belirir (daire yok), **çok hafif fade** ile (Motion `opacity`, 0.18s): SVG'ye maskelenmiş beyaz + `mix-blend-difference` öğe, paylaşılan `active` state.
+  - Katman notu: ikonlar doğrudan üst katmanda (CustomCursor ile aynı bağlam) render edilir; `fixed`/`transform`'lu sarmalayıcıya konmaz, yoksa `mix-blend-difference` sayfa zeminiyle harmanlanamaz. Negatif şekil ikonu (`z-[10001]`), `bg-background` ikonun (`z-[10000]`) üstünde durur ki onu iptal etmesin.
+  - `app/layout.tsx`: `CornerIcons` kök layout'a (`CustomCursor` yanına) eklendi.
+  - Dokümantasyon: `docs/corner-icons.md`.
+
+- **fix(web): `rounded-full` öğeden karta geçerken cursor'ın dev daire olarak takılması düzeltildi.**
+  - `components/shared/custom-cursor.tsx` `wrap()`: `rounded-full` (köşe SVG tetik alanları) `borderTopLeftRadius` olarak devasa bir değer (≈3.3e7px) döndürüyordu; başka bir öğeye (karta) geçerken `radius` spring'i bu kocaman değerden inerken kutu uzun süre dev bir daire olarak takılıyordu. Yarıçap artık kısa kenarın yarısına (`min(w,h)/2`) kırpılıyor — görselde fark yok, geçiş düzgün.
+
+- **fix(web): detay sayfasına geçerken özel cursor'ın anlık sol üste sıçraması düzeltildi.**
+  - `components/shared/custom-cursor.tsx`: View Transition'lı navigasyonda hedef sayfa en üste scroll olduğunda `scroll` listener'ı (`onReflow`) tetikleniyor; ancak tıklanan link o anda DOM'dan kalkmış oluyordu. Bağlı olmayan bir öğenin `getBoundingClientRect()`'i `0,0,0,0` döndürdüğü için cursor kutusu anlık olarak `(0,0)`'a (sol üst) zıplıyordu. Artık `onReflow`, öğenin `isConnected` durumunu kontrol ediyor; öğe kopmuşsa sıçratmak yerine son fare konumunda (`px/py`) nokta moduna düşülüyor.
+
 - **feat(web): imleci takip eden ve tıklanabilir öğelerin şeklini alan özel cursor eklendi.**
   - Yeni `components/shared/custom-cursor.tsx`: boş alanda küçük beyaz nokta olarak fareyi/trackpad'i Motion `useSpring` ile yumuşatarak takip eder; tıklanabilir öğelerin (`a, button, [role=button], input, textarea, select, label, summary, [data-cursor]`) üzerine gelince **o öğenin konumunu, boyutunu ve köşe yarıçapını alıp dolu kutuyla üzerine biner ve `mix-blend-difference` ile içeriği negatife çevirerek kaplar** (yunuses.com benzeri). Scroll/resize'da sarılan öğenin konumu güncel tutulur.
   - **İvme:** boş alanda imlecin anlık hızı `useVelocity` ile ölçülüp yumuşatılarak `scale`'e map edilir; hızlandıkça yuvarlak nokta büyür (`MAX_SPEED`/`MAX_GROWTH` ile ayarlanır), yavaşlayınca eski boyutuna döner. Öğe sarma modunda (`dotMode → 0`) büyüme devre dışıdır ki kutu öğeyi tam kaplasın. Hız, kutunun köşesi yerine **ham imleç konumundan** (`px/py`) ölçülür; böylece öğeye morph sırasındaki konum sıçraması sahte hız üretip absürt büyümeye yol açmaz. `dotMode` boyut spring'iyle aynı tempoda yumuşatılır (`dotModeTarget` → `useSpring`); böylece öğeden **ayrılırken** kutu noktaya dönene kadar hız-büyümesi devreye girmez (ani balon bug'ı önlenir).
