@@ -10,7 +10,7 @@ import {
   useVelocity,
 } from "motion/react"
 
-const EASE = [0.22, 1, 0.36, 1] as const
+import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
 
 /** Cursor'ın varsayılan (boş alan) modundaki nokta boyutu. */
 const DOT_SIZE = 12
@@ -247,7 +247,7 @@ export function CustomCursor() {
       }}
       initial={false}
       animate={{ opacity: visible ? 1 : 0 }}
-      transition={{ duration: 0.25, ease: EASE }}
+      transition={{ duration: DURATION.fast, ease: SMOOTH_OUT }}
     />
   )
 }

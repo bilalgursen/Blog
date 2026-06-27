@@ -3,7 +3,7 @@
 import { motion } from "motion/react"
 import { useEffect, useState, type ReactNode } from "react"
 
-const EASE = [0.22, 1, 0.36, 1] as const
+import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
 
 /**
  * Sayfa **ilk (soğuk) yüklemede** açılış. İlk render'da giriş animasyonu
@@ -45,7 +45,7 @@ export function FadeIn({
       className={className}
       initial={animate ? { opacity: 0, y } : false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: EASE }}
+      transition={{ duration: DURATION.verySlow, delay, ease: SMOOTH_OUT }}
     >
       {children}
     </motion.div>

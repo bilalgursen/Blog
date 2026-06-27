@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-28
+
+- **refactor(web): animasyon süre/easing değerleri merkezî motion-token ölçeğine taşındı.**
+  - Yeni `apps/web/src/lib/motion-tokens.ts`: `transitions-dev` skill'inin paylaşılan motion-token ölçeğiyle birebir hizalı tek kaynak. `EASE` (smoothOut/bounce/bounceStrong), `SMOOTH_OUT` kısa yolu, `DURATION` (stagger…verySlow, saniye) ve `DISTANCE` (px) dışa aktarılır. Proje **yalnızca Motion** kuralı korunur; skill'in saf-CSS geçişleri getirilmez, sadece token ölçeği Motion'a taşınır.
+  - `app/globals.css`: aynı ölçek `:root` altında `--duration-*` ve `--ease-*` değişkenleri olarak eklendi. View Transition blokları artık sabit `0.4s` / `cubic-bezier(...)` yerine `var(--duration-slow)` / `var(--ease-smooth-out)` kullanıyor.
+  - Dört bileşendeki kopya `const EASE = [0.22, 1, 0.36, 1]` sabitleri ve sabit süreler token'lara bağlandı: `components/motion.tsx` (`0.5s → DURATION.verySlow`), `features/portfolio/components/home-showcase.tsx` (`0.5s → verySlow`), `components/shared/custom-cursor.tsx` (`0.25s → DURATION.fast`), `components/shared/corner-icons.tsx` (`0.18s → DURATION.quick`, tutarlılık için ~30ms hızlandı). Görsel davranış aynı; tüm zamanlama tek ölçekten geliyor.
+
 ## 2026-06-27
 
 - **feat(web): sayfa ilk (soğuk) yüklemede giriş animasyonu kapatıldı.**
