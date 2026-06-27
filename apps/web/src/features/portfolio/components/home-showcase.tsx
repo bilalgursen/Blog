@@ -8,10 +8,10 @@ import type { Profile } from "@/src/lib/strapi"
 import { cn } from "@/src/lib/utils"
 import { Card } from "@/src/components/ui/card"
 import { Badge } from "@/src/components/ui/badge"
+import { useEntryMotion } from "@/src/components/motion"
+import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
 import { coverVtName } from "../view-transition"
 import { TransitionLink } from "./transition-link"
-
-const EASE = [0.22, 1, 0.36, 1] as const
 
 /** Server tarafında düzleştirilmiş, istemciye güvenle taşınabilen yazı özeti. */
 export type BlogPreview = {
@@ -143,11 +143,16 @@ export function HomeShowcase({
   posts: BlogPreview[]
 }) {
   const reduceMotion = useReducedMotion()
+  const animateEntry = useEntryMotion()
   const [featured, ...rest] = posts
 
-  const fade = reduceMotion
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
-    : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } }
+  // İlk (soğuk) yüklemede `initial: false` → animasyon yok, içerik son halinde
+  // belirir. Sonraki gezinmelerde yumuşak giriş efekti çalışır.
+  const fade = !animateEntry
+    ? { initial: false as const, animate: { opacity: 1, y: 0 } }
+    : reduceMotion
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+      : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } }
 
   return (
     <section id="top">
@@ -157,7 +162,7 @@ export function HomeShowcase({
           <motion.div
             initial={fade.initial}
             animate={fade.animate}
-            transition={{ duration: 0.5, ease: EASE }}
+            transition={{ duration: DURATION.verySlow, ease: SMOOTH_OUT }}
           >
             {profile.available && (
               <Badge variant="outline" className="mb-6 gap-1.5">
@@ -200,7 +205,7 @@ export function HomeShowcase({
             <motion.div
               initial={fade.initial}
               animate={fade.animate}
-              transition={{ duration: 0.5, delay: 0.1, ease: EASE }}
+              transition={{ duration: DURATION.verySlow, delay: 0.1, ease: SMOOTH_OUT }}
             >
               <TransitionLink
                 href={`/blog/${featured.slug}`}

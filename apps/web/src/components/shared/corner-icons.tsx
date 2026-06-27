@@ -3,7 +3,7 @@
 import { CSSProperties, Fragment, useState } from "react"
 import { motion } from "motion/react"
 
-const EASE = [0.22, 1, 0.36, 1] as const
+import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
 
 /** Köşe boşluğu (px) — Tailwind `top-4` / `x-4` = 1rem. */
 const CORNER = 16
@@ -87,7 +87,7 @@ export function CornerIcons() {
               style={{ width: ICON, height: ICON, ...edge, ...maskStyle(src) }}
               initial={false}
               animate={{ opacity: showNeg ? 1 : 0 }}
-              transition={{ duration: 0.18, ease: EASE }}
+              transition={{ duration: DURATION.quick, ease: SMOOTH_OUT }}
             />
           </Fragment>
         )

@@ -1,6 +1,17 @@
 # Changelog
 
+## 2026-06-28
+
+- **refactor(web): animasyon süre/easing değerleri merkezî motion-token ölçeğine taşındı.**
+  - Yeni `apps/web/src/lib/motion-tokens.ts`: `transitions-dev` skill'inin paylaşılan motion-token ölçeğiyle birebir hizalı tek kaynak. `EASE` (smoothOut/bounce/bounceStrong), `SMOOTH_OUT` kısa yolu, `DURATION` (stagger…verySlow, saniye) ve `DISTANCE` (px) dışa aktarılır. Proje **yalnızca Motion** kuralı korunur; skill'in saf-CSS geçişleri getirilmez, sadece token ölçeği Motion'a taşınır.
+  - `app/globals.css`: aynı ölçek `:root` altında `--duration-*` ve `--ease-*` değişkenleri olarak eklendi. View Transition blokları artık sabit `0.4s` / `cubic-bezier(...)` yerine `var(--duration-slow)` / `var(--ease-smooth-out)` kullanıyor.
+  - Dört bileşendeki kopya `const EASE = [0.22, 1, 0.36, 1]` sabitleri ve sabit süreler token'lara bağlandı: `components/motion.tsx` (`0.5s → DURATION.verySlow`), `features/portfolio/components/home-showcase.tsx` (`0.5s → verySlow`), `components/shared/custom-cursor.tsx` (`0.25s → DURATION.fast`), `components/shared/corner-icons.tsx` (`0.18s → DURATION.quick`, tutarlılık için ~30ms hızlandı). Görsel davranış aynı; tüm zamanlama tek ölçekten geliyor.
+
 ## 2026-06-27
+
+- **feat(web): sayfa ilk (soğuk) yüklemede giriş animasyonu kapatıldı.**
+  - `components/motion.tsx`: yeni `useEntryMotion()` hook'u eklendi. Modül kapsamındaki `hasLoadedOnce` bayrağı sayesinde **ilk render'da `false`** (animasyon yok, içerik son halinde belirir), sonraki mount'larda — yani client-side gezinmede — `true` döner. Sayfa yenileme/soğuk açılış bayrağı sıfırlar.
+  - `FadeIn` ve `features/portfolio/components/home-showcase.tsx`: ilk yüklemede `initial={false}` verilerek giriş efekti atlanıyor; sayfalar arası geçişte (View Transition) yumuşak giriş korunuyor. `useReducedMotion` davranışı değişmedi.
 
 - **feat(web): blog kartında kapak görseli içeri gömük (her yandan padding).**
   - `features/portfolio/components/home-showcase.tsx`: kapak artık karta yapışık değil; `p-1` saran bir kapsayıcıya alındı. Böylece görsel üst/yanlardan ince, eşit bir boşlukla içeri gömülüp `rounded-2xl` köşeleriyle "yuvarlak çerçeveli görsel" gibi duruyor; alt köşelerde kart zemininin sızması da gideriliyor. View Transition morph'u kapsayıcıdan etkilenmeden çalışmaya devam ediyor.

@@ -71,6 +71,22 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+
+    /* ── Motion token ölçeği ───────────────────────────────────────────
+       transitions-dev skill'inin paylaşılan ölçeğiyle hizalı. Motion (JS)
+       tarafı aynı değerleri lib/motion-tokens.ts'ten okur; CSS tarafı
+       (View Transitions vb.) buradaki var(--…) adlarını kullanır. */
+    --duration-stagger: 40ms;
+    --duration-micro: 80ms;
+    --duration-quick: 150ms;
+    --duration-fast: 250ms;
+    --duration-medium: 350ms;
+    --duration-slow: 400ms;
+    --duration-very-slow: 500ms;
+
+    --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+    --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
 }
 
 @theme inline {
@@ -152,14 +168,14 @@
    (`view-transition-name`, bkz. features/portfolio/view-transition.ts).
    Geçiş süresi/easing'i proje standardına çekilir. */
 ::view-transition-group(*) {
-  animation-duration: 0.4s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-smooth-out);
 }
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.4s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-smooth-out);
 }
 
 /* Hareket azaltma tercihinde geçiş animasyonunu kapat (anında değişim). */
