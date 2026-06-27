@@ -5,12 +5,8 @@ import { MapPin } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
 import type { Profile } from "@/src/lib/strapi"
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card"
+import { cn } from "@/src/lib/utils"
+import { Card } from "@/src/components/ui/card"
 import { Badge } from "@/src/components/ui/badge"
 import { coverVtName } from "../view-transition"
 import { TransitionLink } from "./transition-link"
@@ -49,7 +45,7 @@ function Cover({
 }) {
   return (
     <div
-      className={`relative overflow-hidden bg-muted ${className ?? ""}`}
+      className={`relative overflow-hidden rounded-2xl bg-muted ${className ?? ""}`}
       style={
         post.cover
           ? ({ viewTransitionName: coverVtName(post.slug) } as React.CSSProperties)
@@ -66,6 +62,67 @@ function Cover({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Tek yazı kartı. İçerik üç **sabit alana** bölünür: başlık → açıklama →
+ * tarih. Tarih her zaman kartın **en altında** durur (açıklama esner), böylece
+ * içerik uzunluğu farklı olsa da ızgaradaki kartlar hizalı kalır.
+ *
+ * Kapağı olmayan yazılar **boş bir görsel kutusu olmadan**, kapaksız şekilde
+ * sergilenir (yalnızca metin + üst boşluk).
+ */
+function PostCard({
+  post,
+  sizes,
+  featured = false,
+}: {
+  post: BlogPreview
+  sizes: string
+  featured?: boolean
+}) {
+  const date = formatDate(post.date)
+  const hasCover = Boolean(post.cover)
+
+  return (
+    <Card className={cn("h-full overflow-hidden", hasCover && "pt-0")}>
+      {hasCover && (
+        <div className="p-2">
+          <Cover
+            post={post}
+            sizes={sizes}
+            className={cn("w-full", featured ? "aspect-[16/10]" : "aspect-video")}
+          />
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col gap-2 px-(--card-spacing)">
+        {featured && (
+          <Badge variant="secondary" className="w-fit">
+            Öne çıkan
+          </Badge>
+        )}
+
+        {/* Başlık — uzun başlık alt satıra sarar (kırpılmaz). */}
+        <h3
+          className={cn(
+            "font-heading leading-snug font-medium break-words group-hover:underline",
+            featured ? "text-xl" : "text-lg"
+          )}
+        >
+          {post.title}
+        </h3>
+
+        {/* Açıklama — uzun açıklama alt satıra sarar (kırpılmaz). */}
+        <p className="text-sm break-words text-muted-foreground">{post.excerpt}</p>
+
+        {/* Tarih — her zaman en altta */}
+        <time className="mt-auto block h-4 text-xs text-muted-foreground">
+          {date}
+        </time>
+      </div>
+    </Card>
   )
 }
 
@@ -149,31 +206,11 @@ export function HomeShowcase({
                 href={`/blog/${featured.slug}`}
                 className="group block"
               >
-                <Card className="overflow-hidden pt-0 transition-shadow hover:shadow-lg">
-                  <Cover
-                    post={featured}
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    className="aspect-[16/10] w-full"
-                  />
-                  <CardHeader>
-                    <Badge variant="secondary" className="mb-1 w-fit">
-                      Öne çıkan
-                    </Badge>
-                    <CardTitle className="text-xl leading-snug group-hover:underline">
-                      {featured.title}
-                    </CardTitle>
-                    {featured.excerpt && (
-                      <CardDescription className="line-clamp-2">
-                        {featured.excerpt}
-                      </CardDescription>
-                    )}
-                    {formatDate(featured.date) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatDate(featured.date)}
-                      </p>
-                    )}
-                  </CardHeader>
-                </Card>
+                <PostCard
+                  post={featured}
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  featured
+                />
               </TransitionLink>
             </motion.div>
           )}
@@ -193,28 +230,10 @@ export function HomeShowcase({
                   href={`/blog/${post.slug}`}
                   className="group block h-full"
                 >
-                  <Card className="h-full overflow-hidden pt-0 transition-shadow hover:shadow-md">
-                    <Cover
-                      post={post}
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                      className="aspect-video w-full"
-                    />
-                    <CardHeader>
-                      <CardTitle className="text-lg leading-snug group-hover:underline">
-                        {post.title}
-                      </CardTitle>
-                      {post.excerpt && (
-                        <CardDescription className="line-clamp-3">
-                          {post.excerpt}
-                        </CardDescription>
-                      )}
-                      {formatDate(post.date) && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatDate(post.date)}
-                        </p>
-                      )}
-                    </CardHeader>
-                  </Card>
+                  <PostCard
+                    post={post}
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                  />
                 </TransitionLink>
               ))}
             </div>
