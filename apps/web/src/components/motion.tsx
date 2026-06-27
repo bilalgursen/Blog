@@ -1,9 +1,30 @@
 "use client"
 
 import { motion } from "motion/react"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 const EASE = [0.22, 1, 0.36, 1] as const
+
+/**
+ * Sayfa **ilk (soğuk) yüklemede** açılış. İlk render'da giriş animasyonu
+ * çalışmaz; içerik doğrudan son halinde belirir. Sonraki mount'larda
+ * (client-side gezinme) animasyon yeniden devreye girer.
+ */
+let hasLoadedOnce = false
+
+/**
+ * Bu mount'ta giriş animasyonunun çalışıp çalışmayacağını döndürür.
+ * İlk sayfa yüklemesinde `false`, sonraki gezinmelerde `true`.
+ */
+export function useEntryMotion() {
+  const [shouldAnimate] = useState(() => hasLoadedOnce)
+
+  useEffect(() => {
+    hasLoadedOnce = true
+  }, [])
+
+  return shouldAnimate
+}
 
 /** İçeriği hafifçe yukarı kaydırıp belirginleştirerek sahneye sokar. */
 export function FadeIn({
@@ -17,10 +38,12 @@ export function FadeIn({
   delay?: number
   y?: number
 }) {
+  const animate = useEntryMotion()
+
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y }}
+      initial={animate ? { opacity: 0, y } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: EASE }}
     >

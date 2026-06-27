@@ -8,6 +8,7 @@ import type { Profile } from "@/src/lib/strapi"
 import { cn } from "@/src/lib/utils"
 import { Card } from "@/src/components/ui/card"
 import { Badge } from "@/src/components/ui/badge"
+import { useEntryMotion } from "@/src/components/motion"
 import { coverVtName } from "../view-transition"
 import { TransitionLink } from "./transition-link"
 
@@ -143,11 +144,16 @@ export function HomeShowcase({
   posts: BlogPreview[]
 }) {
   const reduceMotion = useReducedMotion()
+  const animateEntry = useEntryMotion()
   const [featured, ...rest] = posts
 
-  const fade = reduceMotion
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
-    : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } }
+  // İlk (soğuk) yüklemede `initial: false` → animasyon yok, içerik son halinde
+  // belirir. Sonraki gezinmelerde yumuşak giriş efekti çalışır.
+  const fade = !animateEntry
+    ? { initial: false as const, animate: { opacity: 1, y: 0 } }
+    : reduceMotion
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+      : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } }
 
   return (
     <section id="top">

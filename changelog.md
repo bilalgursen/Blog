@@ -2,6 +2,10 @@
 
 ## 2026-06-27
 
+- **feat(web): sayfa ilk (soğuk) yüklemede giriş animasyonu kapatıldı.**
+  - `components/motion.tsx`: yeni `useEntryMotion()` hook'u eklendi. Modül kapsamındaki `hasLoadedOnce` bayrağı sayesinde **ilk render'da `false`** (animasyon yok, içerik son halinde belirir), sonraki mount'larda — yani client-side gezinmede — `true` döner. Sayfa yenileme/soğuk açılış bayrağı sıfırlar.
+  - `FadeIn` ve `features/portfolio/components/home-showcase.tsx`: ilk yüklemede `initial={false}` verilerek giriş efekti atlanıyor; sayfalar arası geçişte (View Transition) yumuşak giriş korunuyor. `useReducedMotion` davranışı değişmedi.
+
 - **feat(web): blog kartında kapak görseli içeri gömük (her yandan padding).**
   - `features/portfolio/components/home-showcase.tsx`: kapak artık karta yapışık değil; `p-1` saran bir kapsayıcıya alındı. Böylece görsel üst/yanlardan ince, eşit bir boşlukla içeri gömülüp `rounded-2xl` köşeleriyle "yuvarlak çerçeveli görsel" gibi duruyor; alt köşelerde kart zemininin sızması da gideriliyor. View Transition morph'u kapsayıcıdan etkilenmeden çalışmaya devam ediyor.
 
