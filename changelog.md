@@ -2,6 +2,26 @@
 
 ## 2026-06-27
 
+- **feat(web): blog kartında kapak görseli içeri gömük (her yandan padding).**
+  - `features/portfolio/components/home-showcase.tsx`: kapak artık karta yapışık değil; `p-1` saran bir kapsayıcıya alındı. Böylece görsel üst/yanlardan ince, eşit bir boşlukla içeri gömülüp `rounded-2xl` köşeleriyle "yuvarlak çerçeveli görsel" gibi duruyor; alt köşelerde kart zemininin sızması da gideriliyor. View Transition morph'u kapsayıcıdan etkilenmeden çalışmaya devam ediyor.
+
+- **fix(web): blog kapak morph'unda köşeler iki uçta da yuvarlak — alt köşe snap'i giderildi.**
+  - Kapak `view-transition-name`'li olduğu için snapshot karttan bağımsız alınıyor (kartın `overflow-hidden` kırpması uygulanmıyor). Çözüm, morph eden elemana yarıçapı **doğrudan** vermek (Motion'ın "distorted özelliği inline ver" prensibi): `features/portfolio/components/home-showcase.tsx`'teki kapak `<div>`'ine, detay kapağıyla (`rounded-2xl`) **aynı** `rounded-2xl` eklendi. Böylece her iki uçtaki snapshot doğal olarak yuvarlak; ne uçuş sırasında köşeli kalıyor ne de varışta alt köşeler köşeliye snap ediyor.
+  - Önceki denemede snapshot'a CSS ile zorlanan yarıçap (`::view-transition-old/new(*)`) geri alındı: kartın gerçek kapağı altta köşeli olduğundan morph sonunda alt köşeler snap ediyordu.
+
+- **fix(web): blog detay geçişi (View Transition) tıklama anında pürüzsüzleşti.**
+  - `features/portfolio/components/transition-link.tsx`: `startViewTransition(() => router.push(url))` kalıbı, App Router'da `router.push`'un yeni sayfa DOM'a basılmadan hemen dönmesi yüzünden "yeni" kareyi henüz gelmemiş içerikle yakalıyordu → kapak morph'u ölü kalıp içerik ani yerleşiyordu. Geçiş artık yeni rota commit olana (pathname değişip yeni kare `requestAnimationFrame` ile boyanana) kadar bekletilen bir promise ile çözülüyor; böylece kapak görseli kart ↔ detay arasında düzgün morph oluyor.
+  - Üst üste tık ve takılan navigasyon için güvenlik: önceki bekleyen geçiş serbest bırakılıyor ve 1.5sn'lik zaman aşımı eklendi. Aynı sayfaya tıkta geçiş atlanıyor.
+
+- **fix(web): blog kartlarında uzun başlık/açıklama kırpılmadan alt satıra sarıyor.**
+  - `features/portfolio/components/home-showcase.tsx`: başlık ve açıklamadan `line-clamp` + sabit `min-h` kaldırıldı. Artık başlık veya açıklama sığmayacak kadar uzun olduğunda kırpılmak yerine bütünüyle alt satırlara sarıyor; tarih `mt-auto` ile kartın altında kalmaya devam ediyor.
+  - Sığmayan tek uzun kelime/URL'lerin (`Card` üzerindeki `overflow-hidden` ile) yatayda kırpılmaması için başlık ve açıklamaya `break-words` eklendi.
+
+- **feat(web): blog kartlarında sabit içerik alanları + kapaksız kart görünümü.**
+  - `features/portfolio/components/home-showcase.tsx`: yinelenen kart işaretlemesi tek bir `PostCard` bileşeninde toplandı (öne çıkan + liste kartları).
+  - İçerik üç **sabit alana** bölündü: **başlık** (2 satır, `line-clamp-2` + `min-h`), **açıklama** (`line-clamp` + `min-h`, kalan boşluğu doldurur) ve **tarih** (`mt-auto` ile her zaman kartın **en altında**). Böylece içerik uzunluğu farklı olsa da ızgaradaki kartlar hizalı kalır.
+  - Kapağı olmayan yazılar artık **boş görsel kutusu olmadan**, kapaksız şekilde sergileniyor (`Cover` yalnızca kapak varsa render edilir; kapaksızken kart üst boşluğunu korur).
+
 - **feat(web): üst köşelere, özel cursor'ın negatif alanıyla beliren iki SVG ikon eklendi.**
   - `public/icons/allah.svg` (sağ üst) ve `public/icons/muhammed.svg` (sol üst) eklendi.
   - Yeni `components/shared/corner-icons.tsx`: iki ikon üst köşelerde **`fixed`**, **aynı boyutta** (56px). İkonlar CSS `mask` + **`bg-background`** ile boyandığından **normalde görünmezdir**; yalnızca üzerlerinden bir negatif alan (beyaz + `mix-blend-difference`) geçince belirirler.
