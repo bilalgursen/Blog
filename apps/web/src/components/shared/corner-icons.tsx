@@ -1,9 +1,6 @@
 "use client"
 
 import { CSSProperties, Fragment, useState } from "react"
-import { motion } from "motion/react"
-
-import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
 
 /** Köşe boşluğu (px) — Tailwind `top-4` / `x-4` = 1rem. */
 const CORNER = 16
@@ -37,13 +34,11 @@ function maskStyle(src: string): CSSProperties {
  * üzerlerinden bir **negatif alan** (beyaz + `mix-blend-difference`) geçtiğinde,
  * tersine çevrilen zemin üzerinde kontrast kazanıp belirirler.
  *
- * - Hover edilen köşe: gerçek `CustomCursor`, `data-cursor` alanını yuvarlak
- *   sarar ve o ikonu negatifle gösterir.
- * - Diğer köşe: o ikon **sadece kendi negatif şekliyle** belirir (SVG'ye
- *   maskelenmiş beyaz + `mix-blend-difference`; daire yok), paylaşılan `active`.
+ * - Hover edilen köşe: o ikon **kendi negatif şekliyle** belirir (SVG'ye
+ *   maskelenmiş beyaz + `mix-blend-difference`; daire yok), `active` ile sürülür.
  *
- * Not: İkonlar doğrudan üst katmanda (CustomCursor ile aynı bağlamda) render
- * edilir; `fixed`/`transform`'lu bir sarmalayıcıya konmaz — aksi halde
+ * Not: İkonlar doğrudan üst katmanda render edilir; `fixed`/`transform`'lu bir
+ * sarmalayıcıya konmaz — aksi halde
  * `mix-blend-difference` sayfa zeminiyle harmanlanamaz. Negatif şekil ikonu,
  * `bg-background` ikonun **üstünde** (`z-[10001]`) durur ki onu iptal etmesin.
  */
@@ -55,23 +50,21 @@ export function CornerIcons() {
       {(["left", "right"] as const).map((side) => {
         const { src, label } = META[side]
         const edge = side === "left" ? { left: CORNER } : { right: CORNER }
-        // Diğer köşe hover edilince bu köşedeki ikon kendi negatif şekliyle belirir
-        // (hover edilen köşeyi zaten gerçek cursor yuvarlak sarıyor).
-        const showNeg = active !== null && active !== side
+        // Hover edilen köşedeki ikon kendi negatif şekliyle belirir.
+        const showNeg = active === side
 
         return (
           <Fragment key={side}>
-            {/* Görünmez tetik alanı: gerçek cursor bunu yuvarlak sarar. */}
+            {/* Görünmez hover tetik alanı. */}
             <div
-              data-cursor
               className="fixed top-4 z-[60] rounded-full"
               style={{ width: ICON, height: ICON, ...edge }}
               onPointerEnter={() => setActive(side)}
               onPointerLeave={() => setActive(null)}
             />
 
-            {/* SVG ikon: arka plan rengiyle boyanır → yalnızca gerçek cursor'ın
-                negatif (yuvarlak) alanında görünür. */}
+            {/* SVG ikon: arka plan rengiyle boyanır → normalde görünmez,
+                üstündeki negatif şekil katmanıyla belirir. */}
             <span
               role="img"
               aria-label={label}
@@ -79,15 +72,17 @@ export function CornerIcons() {
               style={{ width: ICON, height: ICON, ...edge, ...maskStyle(src) }}
             />
 
-            {/* Diğer köşe için: ikonun yalnızca negatif şekli (daire yok),
-                çok hafif fade ile gelir. */}
-            <motion.span
+            {/* Hover'da: ikonun negatif şekli (daire yok) animasyonsuz belirir. */}
+            <span
               aria-hidden
               className="pointer-events-none fixed top-4 z-[10001] block bg-white mix-blend-difference"
-              style={{ width: ICON, height: ICON, ...edge, ...maskStyle(src) }}
-              initial={false}
-              animate={{ opacity: showNeg ? 1 : 0 }}
-              transition={{ duration: DURATION.quick, ease: SMOOTH_OUT }}
+              style={{
+                width: ICON,
+                height: ICON,
+                ...edge,
+                ...maskStyle(src),
+                opacity: showNeg ? 1 : 0,
+              }}
             />
           </Fragment>
         )

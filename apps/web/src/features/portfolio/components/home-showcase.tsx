@@ -1,17 +1,11 @@
-"use client"
-
 import Image from "next/image"
+import Link from "next/link"
 import { MapPin } from "lucide-react"
-import { motion, useReducedMotion } from "motion/react"
 
 import type { Profile } from "@/src/lib/strapi"
 import { cn } from "@/src/lib/utils"
 import { Card } from "@/src/components/ui/card"
 import { Badge } from "@/src/components/ui/badge"
-import { useEntryMotion } from "@/src/components/motion"
-import { DURATION, SMOOTH_OUT } from "@/src/lib/motion-tokens"
-import { coverVtName } from "../view-transition"
-import { TransitionLink } from "./transition-link"
 
 /** Server tarafında düzleştirilmiş, istemciye güvenle taşınabilen yazı özeti. */
 export type BlogPreview = {
@@ -33,7 +27,7 @@ function formatDate(value: string | null) {
   })
 }
 
-/** Kapak görseli — kart ↔ detay arasında View Transition ile morph olur. */
+/** Kapak görseli. */
 function Cover({
   post,
   sizes,
@@ -46,11 +40,6 @@ function Cover({
   return (
     <div
       className={`relative overflow-hidden rounded-2xl bg-muted ${className ?? ""}`}
-      style={
-        post.cover
-          ? ({ viewTransitionName: coverVtName(post.slug) } as React.CSSProperties)
-          : undefined
-      }
     >
       {post.cover && (
         <Image
@@ -132,8 +121,7 @@ function PostCard({
  * yazı hero metninin yanında durur, kalan yazılar hemen altında akar.
  * İsim/metin Strapi `profile` single-type'ından gelir (template).
  *
- * Sade tasarım: dekoratif arka plan ışıkları ve parallax yok; yalnızca
- * sayfa açılışında tek, yumuşak bir giriş efekti kullanılır.
+ * Sade tasarım: dekoratif arka plan ışıkları, parallax ve animasyon yok.
  */
 export function HomeShowcase({
   profile,
@@ -142,28 +130,14 @@ export function HomeShowcase({
   profile: Profile
   posts: BlogPreview[]
 }) {
-  const reduceMotion = useReducedMotion()
-  const animateEntry = useEntryMotion()
   const [featured, ...rest] = posts
-
-  // İlk (soğuk) yüklemede `initial: false` → animasyon yok, içerik son halinde
-  // belirir. Sonraki gezinmelerde yumuşak giriş efekti çalışır.
-  const fade = !animateEntry
-    ? { initial: false as const, animate: { opacity: 1, y: 0 } }
-    : reduceMotion
-      ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
-      : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } }
 
   return (
     <section id="top">
       <div className="mx-auto w-full max-w-5xl px-6 pt-28 pb-24 sm:pt-36 sm:pb-32">
         {/* Üst sıra: tanıtım metni + öne çıkan yazı yan yana (iç içe) */}
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-          <motion.div
-            initial={fade.initial}
-            animate={fade.animate}
-            transition={{ duration: DURATION.verySlow, ease: SMOOTH_OUT }}
-          >
+          <div>
             {profile.available && (
               <Badge variant="outline" className="mb-6 gap-1.5">
                 <span className="size-1.5 rounded-full bg-primary" />
@@ -198,26 +172,20 @@ export function HomeShowcase({
                 {profile.location}
               </span>
             )}
-          </motion.div>
+          </div>
 
           {/* Öne çıkan (en yeni) yazı — hero ile aynı sırada */}
           {featured && (
-            <motion.div
-              initial={fade.initial}
-              animate={fade.animate}
-              transition={{ duration: DURATION.verySlow, delay: 0.1, ease: SMOOTH_OUT }}
+            <Link
+              href={`/blog/${featured.slug}`}
+              className="group block"
             >
-              <TransitionLink
-                href={`/blog/${featured.slug}`}
-                className="group block"
-              >
-                <PostCard
-                  post={featured}
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  featured
-                />
-              </TransitionLink>
-            </motion.div>
+              <PostCard
+                post={featured}
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                featured
+              />
+            </Link>
           )}
         </div>
 
@@ -230,7 +198,7 @@ export function HomeShowcase({
 
             <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((post) => (
-                <TransitionLink
+                <Link
                   key={post.id}
                   href={`/blog/${post.slug}`}
                   className="group block h-full"
@@ -239,7 +207,7 @@ export function HomeShowcase({
                     post={post}
                     sizes="(max-width: 768px) 100vw, 33vw"
                   />
-                </TransitionLink>
+                </Link>
               ))}
             </div>
           </div>
