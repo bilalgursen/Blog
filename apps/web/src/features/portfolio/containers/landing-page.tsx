@@ -3,7 +3,7 @@ import { HomeShowcase, type BlogPreview } from "../components/home-showcase"
 
 /**
  * Ana sayfanın bileşimi: tek iç içe akış (tanıtım + blog). Sade tasarım;
- * dekoratif scroll çubuğu ve arka plan efektleri yok.
+ * dekoratif scroll çubuğu, arka plan efektleri ve animasyon yok.
  * Profil ve blog verisi server tarafında çekilip prop olarak iletilir.
  */
 export function LandingPage({

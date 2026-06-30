@@ -2,7 +2,6 @@ import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/src/components/theme-provider"
-import { CustomCursor } from "@/src/components/shared/custom-cursor"
 import { CornerIcons } from "@/src/components/shared/corner-icons"
 import { cn } from "@/src/lib/utils";
 
@@ -30,7 +29,6 @@ export default function RootLayout({
           `cz-shortcut-listen` vb. öznitelik enjekte edip hydration uyarısı üretir. */}
       <body suppressHydrationWarning>
         <ThemeProvider>
-          <CustomCursor />
           <CornerIcons />
           {children}
         </ThemeProvider>

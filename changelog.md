@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-30
+
+- **refactor(web): sitedeki tüm animasyonlar komple kaldırıldı.**
+  - Motion (`motion/react`) tabanlı tüm girişler kaldırıldı: `components/motion.tsx` (`FadeIn`/`useEntryMotion`), `features/portfolio/components/home-intro.tsx` (skeleton açılış + cross-fade reveal) ve `lib/motion-tokens.ts` silindi.
+  - `features/portfolio/components/home-showcase.tsx`: `motion.div` giriş efektleri ve `useReducedMotion`/`useEntryMotion` çıkarıldı; içerik düz `div`/`Link` ile son halinde basılıyor. Kapak görselinden `viewTransitionName` kaldırıldı, bileşen artık server component.
+  - View Transition (kapak morph) sistemi tamamen kaldırıldı: `features/portfolio/components/transition-link.tsx` ve `features/portfolio/view-transition.ts` silindi; `home-showcase` ve `app/blog/[slug]/page.tsx` artık düz Next `Link` kullanıyor.
+  - `app/blog/[slug]/page.tsx`: `FadeIn` sarmalayıcıları ve `coverVtName` kullanımı kaldırıldı.
+  - `components/shared/corner-icons.tsx`: hover reveal `motion.span` yerine animasyonsuz `opacity` toggle'lı düz `span` ile yapılıyor.
+  - `app/globals.css`: `::view-transition-*` blokları, `scroll-behavior: smooth` (ve reduced-motion override'ı) ve `--duration-*`/`--ease-*` motion token değişkenleri kaldırıldı.
+
+- **feat(web): ana sayfa ilk yüklemede skeleton açılışı + pulse-to-content cross-fade.**
+  - Yeni `features/portfolio/components/home-intro.tsx`: `HomeIntro` sarmalayıcı + layout'u taklit eden `HomeSkeleton`. İlk (soğuk) yüklemede skeleton `PULSE_MS` (1000ms) pulse eder, sonra skeleton fade-out+blur ile çıkarken içerik fade-in+blur'dan netliğe gelir (cross-fade + cross-blur, `DURATION.slow`/`EASE.inOut`/`2px`). transitions-dev "skeleton reveal" reçetesinin **Motion** uyarlaması (proje kuralı: yalnızca `motion/react`).
+  - Sonraki client-side gezinmelerde ve `prefers-reduced-motion`'da skeleton gösterilmez; içerik doğrudan belirir (`useEntryMotion`). İçerik SSR'da basılı olduğundan `initial`'lerle flash önlenir.
+  - `lib/motion-tokens.ts`: `EASE.inOut` (`easeInOut`) ve `EASE.linear` (`linear`) eklendi; `app/globals.css` `:root`'a `--ease-in-out` / `--ease-linear` parite için eklendi.
+  - `features/portfolio/containers/landing-page.tsx`: `HomeShowcase`, `HomeIntro` ile sarmalandı. Doküman: `docs/home-intro-skeleton.md`.
+
+- **feat(web): özel cursor kaldırıldı, native imlece dönüldü.**
+  - `components/shared/custom-cursor.tsx` silindi; `app/layout.tsx`'teki `<CustomCursor />` ve importu kaldırıldı. `app/globals.css`'teki `html.has-custom-cursor { cursor: none }` gizleme kuralı temizlendi — imleç artık her yerde görünür.
+  - `components/shared/corner-icons.tsx` cursor'ın negatif (beyaz daire) alanına bağımlıydı; cursor gidince hover edilen köşe belirmez oluyordu. Reveal mantığı `active === side`'a çevrildi: artık hover edilen köşe **kendi** negatif şekliyle belirir. Kullanılmayan `data-cursor` tetik özniteliği kaldırıldı.
+
 ## 2026-06-28
 
 - **refactor(web): animasyon süre/easing değerleri merkezî motion-token ölçeğine taşındı.**
