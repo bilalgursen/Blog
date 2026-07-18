@@ -37,16 +37,26 @@ Blog/
 
 ## Hızlı Başlangıç
 
+İlk adım her iki yolda da aynıdır — `.env` dosyalarını üretip **gerçek
+rastgele secret'lar** yazar (elle `changeMe` doldurmak gerekmez, idempotenttir):
+
+```bash
+sh scripts/setup.sh   # pnpm kuruluysa: pnpm bootstrap
+```
+
 ### Docker ile (önerilen)
 
 Node.js veya pnpm kurulumu gerekmez; tüm servisler container içinde çalışır.
 
 ```bash
-cp .env.example .env
+sh scripts/setup.sh
 docker compose up --build
-# veya arka planda:
-pnpm docker:up:detach
+# veya arka planda: docker compose up --build -d
 ```
+
+İlk açılışta bağımlılıklar imajdaki hazır paket deposundan kurulur (çoğunlukla
+offline, ~saniyeler) ve Strapi admin paneli bir kez derlenir (1–2 dk); sonraki
+açılışlar hızlıdır.
 
 | Servis | URL |
 | --- | --- |
@@ -59,8 +69,7 @@ pnpm docker:up:detach
 ### Yerel geliştirme
 
 ```bash
-cp .env.example .env
-cp apps/cms/.env.example apps/cms/.env
+pnpm bootstrap            # .env + apps/cms/.env üretir (idempotent)
 pnpm install
 docker compose up -d db   # yalnızca PostgreSQL
 pnpm dev                  # web + cms paralel
@@ -70,6 +79,7 @@ pnpm dev                  # web + cms paralel
 
 | Komut | Açıklama |
 | --- | --- |
+| `pnpm bootstrap` | `.env` dosyalarını üret (secret'larla, idempotent) |
 | `pnpm dev` | web + cms birlikte |
 | `pnpm dev:web` | yalnızca Next.js |
 | `pnpm dev:cms` | yalnızca Strapi |
@@ -79,7 +89,8 @@ pnpm dev                  # web + cms paralel
 | `pnpm db:studio` | Drizzle Studio |
 | `pnpm docker:up` | Docker stack (ön planda) |
 | `pnpm docker:down` | container'ları durdur |
-| `pnpm docker:reset` | container + volume sil (DB sıfırlanır) |
+| `pnpm docker:reset` | container + **tüm** volume'ları sil (DB dahil sıfırlanır) |
+| `pnpm docker:reset:deps` | yalnızca bağımlılık volume'larını sil (DB verisi korunur) |
 
 ## Veri Katmanı
 

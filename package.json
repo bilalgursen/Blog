@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "bootstrap": "sh scripts/setup.sh",
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:web": "pnpm --filter web dev",
     "dev:cms": "pnpm --filter cms develop",
@@ -30,6 +31,7 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:reset": "docker-compose down -v",
+    "docker:reset:deps": "docker-compose down && docker volume ls -q -f name=dev_node_modules -f name=dev_pnpm_store | xargs docker volume rm",
     "docker:prod:up": "docker compose -f docker-compose.prod.yml up -d --build",
     "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
     "docker:prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
