@@ -1,16 +1,14 @@
 import type { BlocksContent } from "@/src/components/blocks-renderer"
 
-/** Public Strapi base URL — exposed to the browser (media URLs, links). */
-export const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ?? "http://localhost:1337"
-
 /**
  * Server-side base URL used for fetch from Server Components.
  * In Docker the web container reaches Strapi via the `cms` service host,
  * not `localhost`. Falls back to the public URL for local (non-Docker) dev.
  */
 const SERVER_STRAPI_URL =
-  process.env.STRAPI_INTERNAL_URL ?? STRAPI_URL
+  process.env.STRAPI_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_STRAPI_URL ??
+  "http://localhost:1337"
 
 /** Strapi media (Single media) shape, flattened as in Strapi 5. */
 export interface StrapiMedia {
@@ -54,10 +52,14 @@ interface StrapiListResponse<T> {
   }
 }
 
-/** Prefixes relative Strapi media URLs with the Strapi host. */
+/**
+ * Strapi medya URL'si. Relative `/uploads/...` yolları olduğu gibi döner ve
+ * web uygulamasının kendi origin'indeki proxy route'una düşer
+ * (`app/uploads/[...path]/route.ts`) — Strapi host'u prefix'lenmez. Mutlak
+ * URL'ler (ör. ileride S3/Cloudinary provider) değişmeden geçer.
+ */
 export function mediaUrl(url: string | undefined | null): string | null {
-  if (!url) return null
-  return url.startsWith("http") ? url : `${STRAPI_URL}${url}`
+  return url ?? null
 }
 
 /** Cache tag for all article fetches — allows manual on-demand revalidation. */

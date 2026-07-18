@@ -28,10 +28,8 @@ WORKDIR /app
 FROM base AS builder
 ENV NODE_ENV=production
 
-# NEXT_PUBLIC_* değişkenleri DERLEME ANINDA client bundle'a gömülür.
-# Bu yüzden web'in tarayıcıya açık Strapi adresi build ARG olarak verilir.
-ARG NEXT_PUBLIC_STRAPI_URL=http://localhost:1337
-ENV NEXT_PUBLIC_STRAPI_URL=$NEXT_PUBLIC_STRAPI_URL
+# Strapi medyası web'in /uploads proxy route'u üzerinden sunulduğu için
+# derleme anında Strapi adresi gömülmez; STRAPI_INTERNAL_URL runtime'da okunur.
 
 # Önce manifestler (katman cache'i için), sonra install
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
