@@ -2,6 +2,13 @@
 
 ## 2026-07-18
 
+- **fix(docker): ilk kurulum hızlandırıldı, install yarışı ve bayat volume sorunu giderildi.**
+  - `docker/Dockerfile` (dev): lockfile'daki tüm paketler build sırasında imaj içindeki pnpm store'a indiriliyor (`pnpm fetch`); boş `dev_pnpm_store` volume'u ilk mount'ta imajdan tohumlanır → ilk `up`'taki `pnpm install` çoğunlukla offline, dakikalar yerine saniyeler.
+  - `docker/entrypoint.sh`: `flock` ile install kilidi — aynı `node_modules` volume'unu paylaşan `cms` ve `web` artık aynı anda kurulum yapamaz (yarış/bozulma bitti). `pnpm-lock.yaml` hash'i saklanıyor; lockfile değişince volume silmeden otomatik yeniden kurulum (artık `docker:reset` ile DB silmek gerekmiyor). Install, DB beklemesinden önce çalışıp açılışla paralelleşiyor.
+  - Yeni `scripts/setup.sh` (`pnpm bootstrap`): `.env` ve `apps/cms/.env` dosyalarını şablonlardan üretir, tüm Strapi secret'larını (`APP_KEYS`, salt'lar, JWT, 32 karakterlik `ENCRYPTION_KEY`) ve `REVALIDATE_SECRET`'ı `openssl rand` ile gerçek değerlerle doldurur; idempotent.
+  - Yeni `.nvmrc` (22); kök `package.json`'a `bootstrap` ve `docker:reset:deps` (yalnızca bağımlılık volume'larını siler, DB verisi korunur) scriptleri eklendi.
+  - Doküman: `README.md` quickstart tek adıma indi (`sh scripts/setup.sh` → `docker compose up --build`); `docs/docker-setup.md` store tohumlama, install kilidi ve hash tabanlı bayatlık kontrolüyle güncellendi.
+
 - **fix(web): Strapi medyası aynı origin üzerinden proxy'lenerek panelden yüklenen resimlerin siteye yansımaması düzeltildi.**
   - Kök neden (Docker dev): sayfalar görselleri `http://localhost:1337/uploads/...` mutlak URL'iyle üretiyordu; `next/image` optimizer'ı bu adresi web container'ının **içinden** fetch eder, orada `localhost:1337` Strapi değildir → bağlantı reddedilir → resimler kırık.
   - Yeni `apps/web/src/app/uploads/[...path]/route.ts`: `/uploads/*` isteklerini runtime'da `STRAPI_INTERNAL_URL ?? NEXT_PUBLIC_STRAPI_URL`'e proxy'ler; `Cache-Control: immutable` (Strapi dosya adları hash'li), upstream 404 → 404, CMS kapalıysa 502.

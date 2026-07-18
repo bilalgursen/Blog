@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# Hafif dev image — bağımlılıklar container ilk açılışında entrypoint'te kurulur.
-# Böylece docker build ~1 dk, pnpm install ise yalnızca ilk `up`'ta bir kez çalışır.
+# Dev image — bağımlılıklar container ilk açılışında entrypoint'te kurulur,
+# ama lockfile'daki tüm paketler build sırasında imaj içindeki pnpm store'a
+# indirilir. Boş bir named volume ilk mount'ta imajdaki içerikle tohumlandığı
+# için ilk `up`'taki pnpm install ağa neredeyse hiç çıkmaz.
 
 FROM node:22-slim AS dev
 
@@ -22,6 +24,10 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN pnpm config set store-dir /pnpm/store
 
 WORKDIR /app
+
+# Store'u imajda ısıt: bu katman yalnızca pnpm-lock.yaml değişince yeniden çalışır.
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
