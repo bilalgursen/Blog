@@ -29,47 +29,60 @@ Blog/
 └── package.json      # Kök workspace scriptleri
 ```
 
-## Gereksinimler
+## Sıfırdan Kurulum
 
-- **Node.js** ≥ 22
-- **pnpm** 10.x
-- **Docker** (Compose v2) — tam stack veya yalnızca PostgreSQL için
+En kolay yol Docker'dır: makinede yalnızca **Git** ve **Docker (Compose v2)**
+olması yeterlidir — Node.js veya pnpm kurmanız gerekmez.
 
-## Hızlı Başlangıç
-
-İlk adım her iki yolda da aynıdır — `.env` dosyalarını üretip **gerçek
-rastgele secret'lar** yazar (elle `changeMe` doldurmak gerekmez, idempotenttir):
+### 1. Projeyi klonlayın
 
 ```bash
-sh scripts/setup.sh   # pnpm kuruluysa: pnpm bootstrap
+git clone https://github.com/bilalgursen/Blog.git
+cd Blog
 ```
 
-### Docker ile (önerilen)
-
-Node.js veya pnpm kurulumu gerekmez; tüm servisler container içinde çalışır.
+### 2. Ortam dosyalarını oluşturun
 
 ```bash
 sh scripts/setup.sh
-docker compose up --build
-# veya arka planda: docker compose up --build -d
 ```
 
-İlk açılışta bağımlılıklar imajdaki hazır paket deposundan kurulur (çoğunlukla
-offline, ~saniyeler) ve Strapi admin paneli bir kez derlenir (1–2 dk); sonraki
-açılışlar hızlıdır.
+Bu komut `.env` ve `apps/cms/.env` dosyalarını şablonlardan üretir ve tüm
+gizli anahtarları (Strapi secret'ları vb.) otomatik doldurur. Elle hiçbir
+değer girmeniz gerekmez; tekrar çalıştırmak var olan dosyalara dokunmaz.
+
+### 3. Projeyi başlatın
+
+```bash
+docker compose up --build
+```
+
+İlk açılış: bağımlılıklar imajdaki hazır paket deposundan kurulur (~saniyeler)
+ve Strapi admin paneli bir kez derlenir (1–2 dk). Sonraki açılışlar için
+`docker compose up` yeterlidir ve hızlıdır.
+
+### 4. Kullanmaya başlayın
 
 | Servis | URL |
 | --- | --- |
-| Next.js | http://localhost:3000 |
-| Strapi admin | http://localhost:1337/admin |
+| Site (Next.js) | http://localhost:3000 |
+| Strapi admin paneli | http://localhost:1337/admin |
 | PostgreSQL | localhost:5432 |
 
-İlk Strapi açılışında admin panelinden yönetici hesabı oluşturun.
+- İlk açılışta http://localhost:1337/admin adresinden **yönetici hesabı oluşturun**.
+- Content Manager'dan **Profile** bilgilerinizi girin, **Article** ekleyip
+  **Publish** edin — yazı ve görselleri http://localhost:3000 üzerinde görünür.
 
-### Yerel geliştirme
+Hepsi bu kadar. 🎉
+
+### Alternatif: Docker'sız yerel geliştirme
+
+Host'ta çalıştırmak isterseniz **Node.js ≥ 22** ve **pnpm 10.x** gerekir
+(Postgres yine Docker'dan gelir):
 
 ```bash
-pnpm bootstrap            # .env + apps/cms/.env üretir (idempotent)
+git clone https://github.com/bilalgursen/Blog.git && cd Blog
+pnpm bootstrap            # .env dosyalarını üretir (= sh scripts/setup.sh)
 pnpm install
 docker compose up -d db   # yalnızca PostgreSQL
 pnpm dev                  # web + cms paralel
