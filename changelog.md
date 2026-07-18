@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-18
+
+- **fix(web): Strapi medyası aynı origin üzerinden proxy'lenerek panelden yüklenen resimlerin siteye yansımaması düzeltildi.**
+  - Kök neden (Docker dev): sayfalar görselleri `http://localhost:1337/uploads/...` mutlak URL'iyle üretiyordu; `next/image` optimizer'ı bu adresi web container'ının **içinden** fetch eder, orada `localhost:1337` Strapi değildir → bağlantı reddedilir → resimler kırık.
+  - Yeni `apps/web/src/app/uploads/[...path]/route.ts`: `/uploads/*` isteklerini runtime'da `STRAPI_INTERNAL_URL ?? NEXT_PUBLIC_STRAPI_URL`'e proxy'ler; `Cache-Control: immutable` (Strapi dosya adları hash'li), upstream 404 → 404, CMS kapalıysa 502.
+  - `mediaUrl()` artık relative `/uploads/...` yolunu olduğu gibi döndürür (proxy'ye düşer); mutlak URL'ler (ileride S3 vb.) değişmeden geçer. `STRAPI_URL` export'u kaldırıldı.
+  - `next.config.ts`'ten `images` bloğu (`remotePatterns` + `dangerouslyAllowLocalIP`) tamamen kaldırıldı; `Dockerfile.prod`/`docker-compose.prod.yml`'den `NEXT_PUBLIC_STRAPI_URL` build arg'ı silindi — prod imajı artık URL gömmeden build edilir, alan adı değişince rebuild gerekmez.
+  - Doküman: yeni `docs/media-proxy.md`; `docs/deployment.md` ve `docs/docker-setup.md` güncellendi.
+
+- **chore(infra): veritabanı sıfırlandı, Docker + yerel dev kurulumu sıfırdan yapıldı.**
+  - Tüm Docker container ve volume'leri silindi (`postgres_data`, `cms_uploads`, `dev_node_modules`, `dev_pnpm_store`) — veritabanı ve medya tamamen boşaltıldı.
+  - Kök `.env` ve `apps/cms/.env` yeniden yazıldı: eski dosyalar Docker'daki Postgres yerine kişisel yerel veritabanına (`bilalgursen`/`postgres`) işaret ediyordu. Artık compose varsayılanlarıyla tutarlı (`blog`/`blog_secret`/`blog`, host: `localhost` — container içinde compose `db` olarak override eder). Tüm Strapi secret'ları ve `REVALIDATE_SECRET` yeniden üretildi. Not: eski Strapi admin hesapları ve API token'ları geçersiz; ilk açılışta `http://localhost:1337/admin`'den yeni admin oluşturulmalı.
+  - Drizzle şeması boş veritabanına kuruldu (`drizzle-kit push`): `app.users`, `app.comments`, `app.favorites`.
+  - Doğrulama: Docker modunda (`pnpm docker:up`) ve yerel dev modunda (`pnpm dev`) CMS (`:1337`) ile web (`:3000`) HTTP 200 dönüyor; Strapi `blog` veritabanına bağlanıyor. Web container'ındaki Turbopack panic'inin kaynağı bozuk `dev_node_modules` volume'üydü; volume sıfırlanınca düzeldi.
+
 ## 2026-06-30
 
 - **refactor(web): sitedeki tüm animasyonlar komple kaldırıldı.**

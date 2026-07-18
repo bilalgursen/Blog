@@ -49,7 +49,7 @@ Kök `.env` dosyası tüm servisler tarafından okunur. Docker içinde servisler
 | Değişken | Docker içi değer | Neden |
 | --- | --- | --- |
 | `POSTGRES_HOST` (web + cms) | `db` | `.env` içindeki `localhost` yalnızca Docker dışı geliştirme içindir; cms/web Postgres'e `db:5432` üzerinden ulaşır |
-| `STRAPI_INTERNAL_URL` (web) | `http://cms:1337` | Server Component fetch'i Strapi'ye container ağından ulaşır; tarayıcıya giden `NEXT_PUBLIC_STRAPI_URL` (`localhost:1337`) medya/link URL'leri için ayrı tutulur |
+| `STRAPI_INTERNAL_URL` (web) | `http://cms:1337` | Server Component fetch'i **ve** `/uploads` medya proxy'si Strapi'ye container ağından bu adresle ulaşır (medya web'in kendi origin'inden sunulur — bkz. [media-proxy.md](media-proxy.md)) |
 
 Varsayılan veritabanı kimlik bilgileri:
 

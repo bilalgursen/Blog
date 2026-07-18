@@ -67,7 +67,7 @@ cp .env.example .env
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` | Güçlü, rastgele parola | `openssl rand -base64 24` çıktısı |
 | `POSTGRES_USER` / `POSTGRES_DB` | DB kullanıcı/db adı | `blog` |
-| `NEXT_PUBLIC_STRAPI_URL` | **Tarayıcıya açık** Strapi adresi. ⚠️ **Derleme anında** web imajına gömülür. | `https://cms.alanadiniz.com` |
+| `NEXT_PUBLIC_STRAPI_URL` | Strapi adresi (yalnızca `STRAPI_INTERNAL_URL` yokken server-side fallback; medya web origin'inden sunulur) | `https://cms.alanadiniz.com` |
 | `APP_KEYS` | Strapi oturum anahtarları (virgülle 2+) | `openssl rand -base64 16` × birkaç |
 | `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `TRANSFER_TOKEN_SALT`, `JWT_SECRET` | Strapi gizli anahtarları | her biri `openssl rand -base64 16` |
 | `ENCRYPTION_KEY` | Strapi şifreleme (32+ karakter) | `openssl rand -base64 24` |
@@ -79,12 +79,12 @@ for k in APP_KEYS API_TOKEN_SALT ADMIN_JWT_SECRET TRANSFER_TOKEN_SALT JWT_SECRET
 done
 ```
 
-> ⚠️ **Çok önemli — `NEXT_PUBLIC_STRAPI_URL` derleme anında gömülür.**
-> Next.js `NEXT_PUBLIC_*` değişkenlerini client bundle'a **build sırasında**
-> yazar. Bu yüzden compose, bu değeri web imajına **build arg** olarak geçer.
-> Alan adını değiştirirseniz web imajını **yeniden build** etmelisiniz
-> (`--build`). Server-side fetch ise runtime'da `http://cms:1337` kullanır
-> (`STRAPI_INTERNAL_URL`), bu değişmez.
+> ℹ️ **Medya, web uygulamasının kendi origin'inden sunulur.** Strapi
+> görselleri `/uploads/...` proxy route'u üzerinden gelir
+> (bkz. [docs/media-proxy.md](media-proxy.md)); server-side fetch ve proxy
+> runtime'da `STRAPI_INTERNAL_URL` (`http://cms:1337`) kullanır. Bu sayede
+> derleme anında imaja URL gömülmez — alan adı değişse bile web imajını
+> yeniden build etmek gerekmez.
 
 Docker içinde host'lar otomatik ayarlanır (compose override eder), elle
 girmenize gerek yok:
@@ -178,8 +178,9 @@ server {
 }
 ```
 
-> `NEXT_PUBLIC_STRAPI_URL=https://cms.alanadiniz.com` olmalı (proxy adresi),
-> `http://...:1337` değil.
+> Strapi admin'i dışarı açıyorsanız `NEXT_PUBLIC_STRAPI_URL=https://cms.alanadiniz.com`
+> olmalı (proxy adresi), `http://...:1337` değil. Medya görselleri bu adresten
+> değil, web'in kendi origin'indeki `/uploads/...` proxy'sinden sunulur.
 
 ---
 
@@ -256,7 +257,7 @@ docker run --rm -v blog_cms_uploads:/data -v "$PWD":/backup alpine \
 
 | Belirti | Neden / Çözüm |
 | --- | --- |
-| Web'de medya görselleri kırık | `NEXT_PUBLIC_STRAPI_URL` yanlış adresle **build** edilmiş. Doğru alan adıyla `--build` ile yeniden oluştur. |
+| Web'de medya görselleri kırık | Web, görselleri `/uploads` proxy'si ile `STRAPI_INTERNAL_URL` üzerinden çeker. `cms` container'ının ayakta olduğunu (`docker compose ... ps`) ve web loglarında 502 olup olmadığını kontrol edin. |
 | Web 500 — `ECONNREFUSED 127.0.0.1:1337` | `STRAPI_INTERNAL_URL=http://cms:1337` eksik. Compose web servisinde tanımlı olmalı. |
 | Strapi içerik 403 | Public rolünde `find`/`findOne` izinleri kapalı. Strapi admin'den aç. |
 | `cms` build OOM (exit 137) | Sunucu RAM'i yetersiz. 4 GB'a çıkarın ya da swap ekleyin. |

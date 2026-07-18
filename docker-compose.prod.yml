@@ -59,9 +59,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile.prod
       target: web
-      args:
-        # DERLEME ANINDA gömülür — tarayıcının göreceği herkese açık Strapi adresi.
-        NEXT_PUBLIC_STRAPI_URL: ${NEXT_PUBLIC_STRAPI_URL}
     container_name: blog_web_prod
     restart: unless-stopped
     depends_on:
