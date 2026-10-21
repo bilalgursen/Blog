@@ -8,3 +8,11 @@ onlyBuiltDependencies:
   - "@swc/core"
   - core-js-pure
   - unrs-resolver
+
+# Workspace genelinde TEK React tip sürümü. Strapi (React 18 runtime) ile web
+# (React 19) yan yana; iki @types/react sürümü olduğunda pnpm'in gizli hoist'i
+# 18'i seçebiliyor ve `next build` tip kontrolü (lucide-react, input-otp vb.
+# üzerinden) kırılıyordu. Tipler runtime'ı etkilemez.
+overrides:
+  "@types/react": "^19"
+  "@types/react-dom": "^19"

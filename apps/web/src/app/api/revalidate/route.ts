@@ -6,9 +6,11 @@ import { ARTICLES_TAG } from "@/src/lib/strapi"
 /**
  * Manuel (on-demand) revalidation endpoint.
  *
- * İçerik normalde `revalidate: 3600` ile saatte bir tazelenir. Acil bir
+ * İçerik normalde `revalidate: 60` ile dakikada bir tazelenir. Acil bir
  * düzenlemeyi beklemeden yansıtmak istediğinde bu endpoint elle çağrılır ve
  * `articles` cache tag'ini geçersiz kılar; yazı saniyesinde frontend'e düşer.
+ * `./blog deploy` da her yayından sonra bunu çağırır: derleme anında CMS'e
+ * ulaşılamadığı için boş üretilen sayfalar hemen gerçek içerikle dolar.
  * (Otomatik Strapi webhook'u kaldırıldı — bkz. docs/local-development.md.)
  *
  * Güvenlik: istek `REVALIDATE_SECRET` ile doğrulanır. Secret,
@@ -39,7 +41,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  revalidateTag(ARTICLES_TAG)
+  // `expire: 0` → cache girdisi hemen sona erer; sonraki istek bekletilip
+  // taze veriyle döner (Next 16'da tek argümanlı kullanım kaldırıldı).
+  revalidateTag(ARTICLES_TAG, { expire: 0 })
 
   return NextResponse.json({
     revalidated: true,
