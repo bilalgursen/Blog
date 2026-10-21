@@ -1,25 +1,13 @@
-# Docker ile Tam Stack Kurulumu
+# Docker ile Yerel Geliştirme
 
-Proje `docker compose up` ile PostgreSQL + Strapi + Next.js olarak tek komutta ayağa kalkar.
-
-## Gereksinimler
-
-- [Docker](https://docs.docker.com/get-docker/) (Compose v2 dahil)
-- Git ile proje klonu
-
-Node.js veya pnpm kurulumu **gerekmez** — tüm uygulamalar container içinde çalışır.
-
-## Hızlı Başlangıç
+Proje tek komutla PostgreSQL + Strapi + Next.js olarak ayağa kalkar:
 
 ```bash
-# 1. Ortam dosyalarını üret (gerçek rastgele secret'larla, idempotent)
-sh scripts/setup.sh
-
-# 2. Tüm stack'i başlat
-docker compose up --build
-# veya arka planda:
-docker compose up --build -d
+./blog dev          # Windows (Git Bash/WSL): sh blog dev
 ```
+
+Node.js veya pnpm kurulumu **gerekmez** — tüm uygulamalar container içinde çalışır.
+Kaynak kod bind-mount edilir; değişiklikler anında yansır (hot-reload).
 
 | Servis | URL |
 | --- | --- |
@@ -29,73 +17,72 @@ docker compose up --build -d
 
 İlk Strapi açılışında admin panelinden yönetici hesabı oluşturun.
 
+## `./blog dev` ne yapar?
+
+1. `.env` ve `apps/cms/.env` yoksa şablonlardan üretir; tüm Strapi secret'larını
+   ve `REVALIDATE_SECRET`'ı rastgele doldurur (var olan dosyalara dokunmaz).
+2. `docker compose up -d --build` ile servisleri başlatır.
+3. `db`, `cms` ve `web`'in Docker sağlık kontrolleri **healthy** olana kadar
+   bekler, bu sırada her servisin son log satırını gösterir. Bir servis düşerse
+   son 40 log satırını basıp durur.
+
+Ham compose da çalışır: `./blog setup && docker compose up --build`.
+
 ## Servisler
 
 ```text
-docker-compose.yml
+docker-compose.yml   (proje adı: blog)
 ├── db    → postgres:16-alpine (:5432)
-├── cms   → Strapi develop (:1337)
-└── web   → Next.js dev (:3000)
+├── cms   → Strapi develop (:1337)   healthcheck: /_health
+└── web   → Next.js dev (:3000)      healthcheck: /api/health
 ```
 
 - `db` sağlıklı olmadan `cms` ve `web` başlamaz.
-- Kaynak kodu volume ile mount edilir; hot-reload çalışır.
 - `node_modules` paylaşımlı named volume'da tutulur (host'a yazılmaz).
+- Container'lar `init: true` ile çalışır → `Ctrl+C`/`./blog stop` süreçleri temiz kapatır.
 
 ### İlk kurulum nasıl hızlı çalışır?
 
 - **Store tohumlama:** `docker/Dockerfile` build sırasında lockfile'daki tüm
   paketleri imaj içindeki pnpm store'a indirir (`pnpm fetch`). Boş
   `dev_pnpm_store` volume'u ilk mount'ta imajdaki içerikle tohumlanır; ilk
-  `up`'taki `pnpm install` bu yüzden çoğunlukla offline çalışır ve saniyeler
-  sürer. Bu build katmanı yalnızca `pnpm-lock.yaml` değişince yeniden çalışır.
+  `pnpm install` bu yüzden çoğunlukla offline çalışır.
 - **Install kilidi:** `cms` ve `web` aynı `node_modules` volume'unu paylaşır;
-  entrypoint `flock` ile kilitler — yalnızca bir container kurulum yapar,
-  diğeri bekler (loglarda "Başka bir container bağımlılıkları kuruyor" görünür).
-- **Hash tabanlı bayatlık kontrolü:** kurulumdan sonra `pnpm-lock.yaml`
-  hash'i `node_modules/.pnpm-lock.hash` içine yazılır. Lockfile değişince
-  container bir sonraki açılışta farkı görüp otomatik yeniden kurar —
-  `pnpm docker:reset` (DB'yi de silen) komutuna gerek kalmaz.
+  entrypoint `flock` ile kilitler — yalnızca bir container kurulum yapar.
+- **Hash tabanlı bayatlık kontrolü:** `pnpm-lock.yaml` + `pnpm-workspace.yaml`
+  hash'i `node_modules/.pnpm-lock.hash` içinde saklanır. Değişince container bir
+  sonraki açılışta bağımlılıkları kendisi yeniden kurar.
+- **Sistem paketi yok:** İmajda `apt-get` adımı yoktur. Native bağımlılıklar
+  (sharp, esbuild, swc) hazır binary ile gelir; DB beklemesi Node ile yapılır.
 
 ## Ortam Değişkenleri
 
-Kök `.env` dosyası tüm servisler tarafından okunur. Docker içinde servisler birbirine **servis adıyla** erişir (`localhost` değil); compose bu host'ları override eder:
+Kök `.env` dosyası tüm servisler tarafından okunur. Docker içinde servisler
+birbirine **servis adıyla** erişir (`localhost` değil); compose bu host'ları override eder:
 
 | Değişken | Docker içi değer | Neden |
 | --- | --- | --- |
-| `POSTGRES_HOST` (web + cms) | `db` | `.env` içindeki `localhost` yalnızca Docker dışı geliştirme içindir; cms/web Postgres'e `db:5432` üzerinden ulaşır |
-| `STRAPI_INTERNAL_URL` (web) | `http://cms:1337` | Server Component fetch'i **ve** `/uploads` medya proxy'si Strapi'ye container ağından bu adresle ulaşır (medya web'in kendi origin'inden sunulur — bkz. [media-proxy.md](media-proxy.md)) |
+| `POSTGRES_HOST` (web + cms) | `db` | `.env` içindeki `localhost` yalnızca Docker dışı geliştirme içindir |
+| `STRAPI_INTERNAL_URL` (web) | `http://cms:1337` | Server Component fetch'i **ve** `/uploads` medya proxy'si (bkz. [media-proxy.md](media-proxy.md)) |
 
-Varsayılan veritabanı kimlik bilgileri:
-
-| Değişken | Varsayılan |
-| --- | --- |
-| `POSTGRES_DB` | `blog` |
-| `POSTGRES_USER` | `blog` |
-| `POSTGRES_PASSWORD` | `blog_secret` |
+Varsayılan veritabanı kimlik bilgileri: `blog` / `blog` / `blog_secret` (`POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`).
 
 ## Yararlı Komutlar
 
 | Komut | Açıklama |
 | --- | --- |
-| `pnpm docker:up` | Build + başlat (ön planda) |
-| `pnpm docker:up:detach` | Build + arka planda başlat |
-| `pnpm docker:down` | Container'ları durdur |
-| `pnpm docker:logs` | Tüm servis logları |
-| `pnpm docker:reset` | Container + **tüm** volume'ları sil (DB dahil sıfırlanır) |
-| `pnpm docker:reset:deps` | Yalnızca `dev_node_modules` + `dev_pnpm_store` volume'larını sil (DB verisi korunur) |
-
-Bağımlılık değişikliğinden sonra ekstra bir şey gerekmez: container bir sonraki
-`docker compose up`'ta lockfile hash farkını görüp bağımlılıkları kendisi
-yeniden kurar. Volume'ları elle sıfırlamak gerekirse `pnpm docker:reset:deps`
-kullanın (DB'ye dokunmaz).
+| `./blog dev` | Kur + başlat + hazır olana kadar bekle |
+| `./blog logs [servis]` | Canlı loglar |
+| `./blog status` | Servis durumları |
+| `./blog stop` | Container'ları durdur (veriler korunur) |
+| `./blog backup --dev` | Yerel veritabanı + medya yedeği (sunucuya taşımak için) |
+| `./blog reset` | Container + **tüm** volume'ları sil (DB dahil) |
+| `pnpm docker:reset:deps` | Yalnızca bağımlılık volume'larını sil (DB korunur) |
 
 ## Yerel Geliştirme (Docker Olmadan)
 
-Docker yerine doğrudan host'ta çalıştırmak için:
-
 ```bash
-pnpm bootstrap            # .env + apps/cms/.env üretir (idempotent)
+./blog setup              # .env + apps/cms/.env üretir (idempotent)
 pnpm install
 docker compose up -d db   # sadece PostgreSQL
 pnpm dev
@@ -105,12 +92,21 @@ pnpm dev
 
 **Port çakışması:** `.env` içinde `POSTGRES_PORT`, `WEB_PORT` veya `CMS_PORT` değiştirin.
 
-**Eski node_modules volume:** Normalde kendiliğinden düzelir — entrypoint lockfile hash'ini kontrol edip gerekirse yeniden kurar. Düzelmezse `pnpm docker:reset:deps` (DB verisi korunur) ardından `docker compose up --build`.
+**Eski node_modules volume:** Normalde kendiliğinden düzelir (hash kontrolü). Düzelmezse
+`pnpm docker:reset:deps` (DB verisi korunur) ardından `./blog dev`.
 
-**Strapi yavaş ilk açılış:** Admin paneli derlemesi ilk seferde 1–2 dakika sürebilir; normaldir.
+**Strapi yavaş ilk açılış:** Admin paneli derlemesi ilk seferde birkaç dakika sürebilir; normaldir.
 
-**CMS sürekli `PostgreSQL bekleniyor (localhost:5432)` yazıyor:** `.env`'deki `POSTGRES_HOST=localhost` cms container'ına sızmış demektir. cms servisinde `POSTGRES_HOST: db` set edilmiş olmalı (`docker-compose.yml`).
+**Windows'ta `bad interpreter` / `\r` hataları:** Depo `.gitattributes` ile betikleri LF olarak
+klonlar. Daha önce CRLF ile klonladıysanız: `git rm --cached -r . && git reset --hard`.
 
-**Web 500 — `Module not found: motion/react` (veya yeni eklenen bir paket):** `dev_node_modules` volume'ü eski kalmış. Container'ları yeniden başlatmak (`docker compose up`) lockfile hash kontrolüyle normalde bunu kendiliğinden çözer. Çözmezse `pnpm docker:reset:deps` (DB verisi korunur) + `rm -rf apps/web/.next` ardından `docker compose up --build`.
+**CMS sürekli `PostgreSQL bekleniyor (localhost:5432)` yazıyor:** `.env`'deki
+`POSTGRES_HOST=localhost` cms container'ına sızmış demektir; cms servisinde
+`POSTGRES_HOST: db` set edilmiş olmalı (`docker-compose.yml`).
 
-**Web 500 — `ECONNREFUSED 127.0.0.1:1337`:** Web, Strapi'ye `localhost` üzerinden ulaşmaya çalışıyor. `STRAPI_INTERNAL_URL=http://cms:1337` web servisinde tanımlı olmalı (`docker-compose.yml`).
+**Web 500 — `Module not found` (yeni eklenen bir paket):** `dev_node_modules` volume'ü
+eski kalmış. `./blog dev` normalde bunu çözer; çözmezse `pnpm docker:reset:deps` +
+`rm -rf apps/web/.next` ardından `./blog dev`.
+
+**Web 500 — `ECONNREFUSED 127.0.0.1:1337`:** `STRAPI_INTERNAL_URL=http://cms:1337`
+web servisinde tanımlı olmalı (`docker-compose.yml`).
