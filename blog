@@ -47,7 +47,7 @@ die() {
   printf '%s✖ %s%s\n' "$RED" "$*" "$RESET" >&2
   exit 1
 }
-clear_line() { [ -n "$IS_TTY" ] && printf '\r%s[K' "$ESC" || true; }
+clear_line() { if [ -n "$IS_TTY" ]; then printf '\r%s[K' "$ESC"; fi; }
 
 # ---------------------------------------------------------------
 # Kullanıcı etkileşimi (curl | sh ile çalışırken bile /dev/tty'den okur)
