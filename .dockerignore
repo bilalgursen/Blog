@@ -1,18 +1,47 @@
-node_modules
+# Build context'e yalnızca kaynak kod girer. Desenler context köküne göre
+# eşleşir; alt klasörler için `**/` şarttır (ör. apps/web/node_modules).
+**/node_modules
 .pnpm-store
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
 .git
 .gitignore
+.github
 .cursor
-.next
+.claude
+.vscode
+
+# Strapi derleme/çalışma çıktıları (builder içinde yeniden üretilir)
 apps/cms/.tmp
+apps/cms/.cache
+apps/cms/.strapi
 apps/cms/dist
 apps/cms/build
 apps/cms/public/uploads/*
 !apps/cms/public/uploads/.gitkeep
+
+# Gizli bilgiler ve yerel veriler asla imaja girmez
 .env
-apps/cms/.env
+.env.*
+apps/*/.env
+apps/*/.env.*
+backups
+
+# Operasyon dosyaları uygulama imajına girmez; değiştiklerinde (ör. CLI
+# güncellemesi) `./blog update` uygulamaları gereksiz yere yeniden derlemesin.
+# (Dockerfile'lar context dışında olsa da BuildKit onları ayrıca okur.)
+blog
+scripts
+docker-compose*.yml
+docker/caddy
+docker/Dockerfile*
+LICENSE
+.gitattributes
+.dockerignore
+
+# Dokümantasyon
 *.md
-!docs/docker-setup.md
+docs
 .DS_Store
-coverage
-.turbo

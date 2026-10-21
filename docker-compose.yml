@@ -1,9 +1,20 @@
+# ============================================================
+# Geliştirme ortamı: PostgreSQL + Strapi (develop) + Next.js (dev)
+# Önerilen kullanım:  ./blog dev
+# Ham compose:        docker compose up --build   (önce: ./blog setup)
+# Kaynak kod bind-mount edilir → hot-reload çalışır.
+# Üretim için: docker-compose.prod.yml / ./blog deploy
+# ============================================================
+
+name: blog
+
 x-dev-app: &dev-app
   image: blog-monorepo:dev
   build:
     context: .
     dockerfile: docker/Dockerfile
     target: dev
+  init: true
   env_file:
     - .env
   volumes:
@@ -60,6 +71,21 @@ services:
       - dev_pnpm_store:/pnpm/store
       - cms_uploads:/app/apps/cms/public/uploads
     command: ["pnpm", "--filter", "cms", "develop"]
+    # İlk açılışta bağımlılık kurulumu + admin paneli derlemesi birkaç dakika
+    # sürebilir; start_period yalnızca bir tolerans süresidir (Strapi daha
+    # erken hazır olursa hemen "healthy" olur).
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:1337/_health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
 
   web:
     <<: *dev-app
@@ -79,6 +105,18 @@ services:
       - "${WEB_PORT:-3000}:3000"
     command:
       ["pnpm", "--filter", "web", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 600s
 
 volumes:
   postgres_data:

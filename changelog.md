@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-21
+
+- **feat(infra): tek komutla kurulum ve yayın — `./blog` CLI, Caddy ile otomatik HTTPS, yedekleme.**
+  - Yeni kök `blog` CLI'ı (POSIX sh, yalnızca Docker gerektirir): `dev`, `deploy`, `update`, `status`, `logs`, `start`/`stop`/`restart`, `backup`, `restore`, `reset`, `setup`. Servislerin Docker sağlık kontrollerini bekler, hata olursa ilgili logları basar. Ayrıntılar: `docs/blog-cli.md`.
+  - Yeni `scripts/install.sh`: sunucuda tek satır kurulum (`curl … | sh -s -- --domain …`) — git'i kurar, depoyu klonlar, `./blog deploy` çalıştırır; Docker yoksa resmi betikle kurmayı teklif eder. `--repo` ile fork desteği.
+  - `docker-compose.prod.yml` baştan yazıldı: sabit proje adı `blog-prod` (dev ile volume çakışması bitti), `caddy` servisi (`COMPOSE_PROFILES=caddy`, Let's Encrypt, HTTP/3), servis başına açık `environment` listesi (web Strapi anahtarlarını görmez), healthcheck'ler, `init: true`, log rotasyonu, eksik değişkende açıklayıcı hata. Yeni `docker/caddy/Caddyfile`, `.env.production.example`.
+  - Hata düzeltmesi: üretimde medya volume'ü yanlış yola (`/app/apps/cms/public/uploads`) bağlanıyordu; yüklenen görseller container yeniden oluşturulunca kayboluyordu → `/app/public/uploads`.
+  - `docker/Dockerfile.prod`: `apt-get` kaldırıldı (native bağımlılıkların hepsi hazır binary), runner imajları derleme araçsız ve root olmayan `node` kullanıcısıyla, `HEALTHCHECK`'li; pnpm store cache mount'u; `NODE_ENV=production` artık `pnpm install`'dan sonra (devDependencies atlanıp derleme kırılıyordu); `pnpm deploy --legacy` + derlenmiş `dist/`'in kopyalanması (Strapi aksi halde başlamıyordu).
+  - `docker/Dockerfile` (dev) + `entrypoint.sh`: `apt-get`/netcat kaldırıldı, DB beklemesi Node ile; hash artık `pnpm-workspace.yaml`'ı da kapsar. `docker-compose.yml`: proje adı `blog`, `init: true`, cms/web healthcheck'leri.
+  - Strapi `config/server.ts`: `url` (`PUBLIC_URL`) ve `proxy.koa` (`IS_PROXIED`) — Caddy arkasında istekler HTTPS algılanır, admin çerezleri `secure`.
+  - Yeni `apps/web/src/app/api/health/route.ts` (healthcheck'ler ve CLI için).
+  - **fix(web): üretim derlemesi (`next build`) kırıktı, düzeltildi.** Next 16'da `revalidateTag` iki argüman istiyor → `revalidateTag(tag, { expire: 0 })` (anında yansıtma davranışı korundu). Hiçbir yerden kullanılmayan ve var olmayan fonksiyonları import eden `src/features/blog/*` (eski deneme) silindi. Workspace'te iki `@types/react` sürümü (Strapi 18 / web 19) gizli hoist'te çakışıp tip kontrolünü kırıyordu → `pnpm-workspace.yaml` `overrides` ile tek sürüm (19).
+  - `.dockerignore`: alt klasörlerdeki `node_modules`/`.next` artık context'e girmiyor; operasyon dosyaları (CLI, compose, Caddyfile) değişince uygulama imajları gereksiz yere yeniden derlenmiyor. `.gitattributes`: betikler Windows'ta da LF.
+  - Kök `package.json`: eski `docker-compose` (v1) komutları CLI'a yönlendirildi.
+  - Yeni `.github/workflows/ci.yml`: typecheck + build + shellcheck ve GitHub runner'ında gerçek `./blog deploy --domain localhost` + yedek/geri yükleme + update smoke testi.
+  - Açık kaynak: `LICENSE` (MIT); `README.md` baştan yazıldı (kurulum, ilk içerik, deploy, yedekleme, mimari, özelleştirme, sorun giderme, katkı, İngilizce hızlı başlangıç). `docs/deployment.md` ve `docs/docker-setup.md` yeni akışa göre güncellendi; yeni `docs/blog-cli.md`.
+  - Doğrulama: `./blog deploy --domain localhost` ile tam üretim stack'i (derleme → healthy → HTTPS), admin kaydı (secure cookie), görsel yükleme + yazı yayınlama → sitede görünme, `/uploads` proxy, `next/image` WebP, yedek → veri silme → geri yükleme, idempotent `update` (değişiklik yokken 7 sn), `--no-caddy` ↔ `--caddy` geçişi; `./blog dev` ile geliştirme stack'i.
+
 ## 2026-07-18
 
 - **fix(docker): ilk kurulum hızlandırıldı, install yarışı ve bayat volume sorunu giderildi.**

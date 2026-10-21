@@ -1,0 +1,29 @@
+# ============================================================
+# Caddy — otomatik HTTPS reverse proxy (Let's Encrypt).
+# Alan adları .env.production'dan gelir (DOMAIN, CMS_DOMAIN); sertifikalar
+# caddy_data volume'ünde saklanır ve süresi dolmadan kendiliğinden yenilenir.
+# Gereken tek şey: iki alan adının DNS A/AAAA kaydı bu sunucuyu göstermeli
+# ve 80/443 portları açık olmalı.
+# ============================================================
+
+# Blog (Next.js)
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# Strapi admin paneli + içerik API'si
+{$CMS_DOMAIN} {
+	encode zstd gzip
+	# Medya yüklemeleri için gövde sınırı (Strapi'nin kendi sınırı da 200 MB).
+	request_body {
+		max_size 200MB
+	}
+	reverse_proxy cms:1337
+}
+
+# İsteğe bağlı: www → çıplak alan adı yönlendirmesi. Kullanmak için www
+# kaydının DNS'te tanımlı olduğundan emin olup aşağıdaki bloğu açın.
+# www.{$DOMAIN} {
+# 	redir https://{$DOMAIN}{uri} permanent
+# }

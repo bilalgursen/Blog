@@ -1,28 +1,44 @@
 # ============================================================
-# Üretim (production) stack: PostgreSQL + Strapi + Next.js
-# Kullanım:
-#   docker compose -f docker-compose.prod.yml up -d --build
-# Portlar yalnızca 127.0.0.1'e bağlanır; dışarı açmak reverse proxy
-# (Nginx/Caddy/Traefik) görevidir. TLS'i proxy sonlandırır.
+# Üretim (production) stack: PostgreSQL + Strapi + Next.js + Caddy
+#
+# Önerilen kullanım:  ./blog deploy        (yapılandırır, derler, başlatır)
+# Ham compose:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# - Caddy 80/443'ü dinler ve Let's Encrypt ile otomatik HTTPS sağlar
+#   (DOMAIN → web, CMS_DOMAIN → Strapi). Kendi reverse proxy'nizi
+#   kullanıyorsanız .env.production'da COMPOSE_PROFILES'ı boş bırakın;
+#   web/cms yalnızca 127.0.0.1:3000 / 127.0.0.1:1337'de dinler.
+# - Her servis yalnızca ihtiyaç duyduğu değişkenleri alır (web Strapi
+#   anahtarlarını, cms revalidate secret'ını görmez).
+# - Kalıcı veri: postgres_data (DB), cms_uploads (medya), caddy_data (sertifikalar).
 # ============================================================
+
+name: blog-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: blog_postgres_prod
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?.env.production eksik — önce ./blog deploy çalıştırın}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD tanımlı değil}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB tanımlı değil}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
+    logging: *logging
 
   cms:
     image: blog-cms:prod
@@ -30,15 +46,15 @@ services:
       context: .
       dockerfile: docker/Dockerfile.prod
       target: cms
-    container_name: blog_cms_prod
     restart: unless-stopped
+    init: true
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
+      PUBLIC_URL: ${CMS_URL:-}
+      IS_PROXIED: "true"
       DATABASE_CLIENT: postgres
       DATABASE_HOST: db
       DATABASE_PORT: 5432
@@ -46,12 +62,17 @@ services:
       DATABASE_USERNAME: ${POSTGRES_USER}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_SSL: "false"
-      HOST: 0.0.0.0
-      PORT: 1337
+      APP_KEYS: ${APP_KEYS:?APP_KEYS tanımlı değil}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:?API_TOKEN_SALT tanımlı değil}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET tanımlı değil}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?TRANSFER_TOKEN_SALT tanımlı değil}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET tanımlı değil}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY tanımlı değil}
     ports:
-      - "127.0.0.1:1337:1337"
+      - "127.0.0.1:${CMS_PORT:-1337}:1337"
     volumes:
-      - cms_uploads:/app/apps/cms/public/uploads
+      - cms_uploads:/app/public/uploads
+    logging: *logging
 
   web:
     image: blog-web:prod
@@ -59,19 +80,50 @@ services:
       context: .
       dockerfile: docker/Dockerfile.prod
       target: web
-    container_name: blog_web_prod
     restart: unless-stopped
+    init: true
     depends_on:
       - cms
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
-      # Server-side fetch container ağı üzerinden Strapi'ye ulaşır.
+      # Server-side fetch ve /uploads medya proxy'si Strapi'ye container ağı
+      # üzerinden ulaşır; alan adı imaja gömülmez.
       STRAPI_INTERNAL_URL: http://cms:1337
+      STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?REVALIDATE_SECRET tanımlı değil}
+      # @repo/db (Drizzle) için — uygulama tabloları `app` şemasında.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_SSL: "false"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["caddy"]
+    restart: unless-stopped
+    depends_on:
+      - web
+      - cms
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN tanımlı değil}
+      CMS_DOMAIN: ${CMS_DOMAIN:?CMS_DOMAIN tanımlı değil}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *logging
 
 volumes:
   postgres_data:
   cms_uploads:
+  caddy_data:
+  caddy_config:

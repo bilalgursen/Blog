@@ -1,27 +1,24 @@
 # syntax=docker/dockerfile:1
 
-# Dev image — bağımlılıklar container ilk açılışında entrypoint'te kurulur,
-# ama lockfile'daki tüm paketler build sırasında imaj içindeki pnpm store'a
-# indirilir. Boş bir named volume ilk mount'ta imajdaki içerikle tohumlandığı
-# için ilk `up`'taki pnpm install ağa neredeyse hiç çıkmaz.
+# Geliştirme imajı (docker-compose.yml) — kaynak kod bind-mount edilir,
+# hot-reload çalışır. Bağımlılıklar container ilk açılışında entrypoint'te
+# kurulur; ama lockfile'daki tüm paketler build sırasında imaj içindeki pnpm
+# store'una indirilir. Boş bir named volume ilk mount'ta imajdaki içerikle
+# tohumlandığı için ilk `up`'taki pnpm install ağa neredeyse hiç çıkmaz.
+#
+# apt-get kullanılmaz: native bağımlılıkların hepsi hazır binary ile gelir,
+# DB beklemesi de Node ile yapılır (bkz. entrypoint.sh).
 
-FROM node:22-slim AS dev
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-slim AS dev
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    netcat-openbsd \
-    python3 \
-    make \
-    g++ \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
-
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN pnpm config set store-dir /pnpm/store
+ARG PNPM_VERSION=10.8.1
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    PNPM_HOME="/pnpm" \
+    PATH="/pnpm:$PATH" \
+    NEXT_TELEMETRY_DISABLED=1
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate \
+ && pnpm config set store-dir /pnpm/store
 
 WORKDIR /app
 

@@ -38,6 +38,14 @@ pnpm-debug.log*
 .env
 .env*
 !.env.example
+!.env.production.example
+
+# ./blog backup çıktıları (veritabanı + medya içerir)
+/backups/
+
+# Makineye/sunucuya özel compose ayarları (./blog otomatik ekler)
+/docker-compose.override.yml
+/docker-compose.prod.override.yml
 
 # typescript
 *.tsbuildinfo

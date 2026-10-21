@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "bootstrap": "sh scripts/setup.sh",
+    "bootstrap": "sh blog setup",
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:web": "pnpm --filter web dev",
     "dev:cms": "pnpm --filter cms develop",
@@ -26,15 +26,15 @@
     "lint": "pnpm --recursive lint",
     "typecheck": "pnpm --recursive typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "docker:up": "docker-compose up --build",
-    "docker:up:detach": "docker-compose up --build -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f",
-    "docker:reset": "docker-compose down -v",
-    "docker:reset:deps": "docker-compose down && docker volume ls -q -f name=dev_node_modules -f name=dev_pnpm_store | xargs docker volume rm",
-    "docker:prod:up": "docker compose -f docker-compose.prod.yml up -d --build",
-    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
-    "docker:prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
+    "docker:up": "sh blog dev",
+    "docker:down": "sh blog stop --dev",
+    "docker:logs": "sh blog logs --dev",
+    "docker:reset": "sh blog reset --dev",
+    "docker:reset:deps": "docker compose down && docker volume rm blog_dev_node_modules blog_dev_pnpm_store",
+    "docker:prod:up": "sh blog deploy",
+    "docker:prod:down": "sh blog stop --prod",
+    "docker:prod:logs": "sh blog logs --prod",
+    "backup": "sh blog backup"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

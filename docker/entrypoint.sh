@@ -1,12 +1,19 @@
 #!/bin/sh
 set -e
 
+# PostgreSQL TCP portu açılana kadar bekler. compose zaten `db` sağlıklı
+# olmadan cms/web'i başlatmaz; bu yalnızca ek bir güvenlik ağıdır.
+# (netcat yerine Node kullanılır → imajda ekstra paket gerekmez.)
 wait_for_db() {
-  host="${POSTGRES_HOST:-${DATABASE_HOST:-db}}"
-  port="${POSTGRES_PORT:-${DATABASE_PORT:-5432}}"
+  DB_WAIT_HOST="${POSTGRES_HOST:-${DATABASE_HOST:-db}}"
+  DB_WAIT_PORT="${POSTGRES_PORT:-${DATABASE_PORT:-5432}}"
+  export DB_WAIT_HOST DB_WAIT_PORT
 
-  echo ">> PostgreSQL bekleniyor (${host}:${port})..."
-  until nc -z "$host" "$port" 2>/dev/null; do
+  echo ">> PostgreSQL bekleniyor (${DB_WAIT_HOST}:${DB_WAIT_PORT})..."
+  until node -e '
+    const s = require("net").connect(+process.env.DB_WAIT_PORT, process.env.DB_WAIT_HOST)
+    s.on("connect", () => process.exit(0)).on("error", () => process.exit(1))
+  ' 2>/dev/null; do
     sleep 1
   done
   echo ">> PostgreSQL hazır."
@@ -24,11 +31,13 @@ install_deps() {
     echo ">> Başka bir container bağımlılıkları kuruyor, bekleniyor..."
     flock 9
   fi
-  current="$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)"
+  current="$(cat pnpm-lock.yaml pnpm-workspace.yaml | sha256sum | cut -d' ' -f1)"
   stored="$(cat "$hash_file" 2>/dev/null || true)"
   if [ ! -d node_modules/.pnpm ] || [ "$current" != "$stored" ]; then
     echo ">> Bağımlılıklar kuruluyor (store imajdan tohumlu, çoğunlukla offline)..."
-    pnpm install --frozen-lockfile --prefer-offline
+    # confirmModulesPurge=false: node_modules düzeni değiştiğinde (ör. yeni
+    # pnpm ayarı) TTY olmayan container'da onay beklemeden yeniden kurar.
+    pnpm install --frozen-lockfile --prefer-offline --config.confirmModulesPurge=false
     printf '%s' "$current" >"$hash_file"
     echo ">> Bağımlılıklar hazır."
   fi

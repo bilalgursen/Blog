@@ -1,70 +1,89 @@
 # syntax=docker/dockerfile:1
 
 # ============================================================
-# Üretim (production) imajı.
-# Tek Dockerfile içinde iki ayrı çalıştırma target'ı üretir:
+# Üretim (production) imajları — tek Dockerfile, iki çalıştırma target'ı:
 #   - target: web  -> Next.js standalone sunucu (:3000)
 #   - target: cms  -> Strapi 5 sunucu (:1337)
-# Derleme tek "builder" katmanında yapılır, runner'lar ince tutulur.
+# Derleme tek "builder" aşamasında yapılır; çalıştırma imajları ince tutulur
+# (derleme araçları, kaynak kod ve devDependencies içermez) ve root olmayan
+# `node` kullanıcısıyla çalışır.
+#
+# Not: apt-get kullanılmaz. Native bağımlılıkların (sharp, esbuild, swc)
+# tamamı hazır binary ile gelir; derleyici (python3/make/g++) gerekmez.
 # ============================================================
 
-# ---- Base: Node 22 + pnpm ----
-FROM node:22-slim AS base
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    python3 \
-    make \
-    g++ \
-  && rm -rf /var/lib/apt/lists/*
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
+ARG NODE_VERSION=22
+ARG PNPM_VERSION=10.8.1
+
+# ---- Base: Node + pnpm (yalnızca derleme için) ----
+FROM node:${NODE_VERSION}-slim AS base
+ARG PNPM_VERSION
 ENV PNPM_HOME="/pnpm" \
-    PATH="/pnpm:$PATH"
-RUN pnpm config set store-dir /pnpm/store
+    PATH="/pnpm:$PATH" \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    NEXT_TELEMETRY_DISABLED=1
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 
-# ---- Builder: tüm bağımlılıkları kur, her iki uygulamayı derle ----
+# ---- Builder: bağımlılıkları kur, iki uygulamayı da derle ----
 FROM base AS builder
-ENV NODE_ENV=production
 
-# Strapi medyası web'in /uploads proxy route'u üzerinden sunulduğu için
-# derleme anında Strapi adresi gömülmez; STRAPI_INTERNAL_URL runtime'da okunur.
-
-# Önce manifestler (katman cache'i için), sonra install
+# Önce yalnızca manifestler: kaynak değişse de bu katman cache'ten gelir.
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/cms/package.json apps/cms/package.json
 COPY packages/db/package.json packages/db/package.json
-RUN pnpm install --frozen-lockfile
+# Store cache mount'u: sunucuda `./blog update` sırasında paketler yeniden
+# indirilmez. NODE_ENV burada henüz "production" DEĞİL — aksi halde pnpm
+# devDependencies'i (typescript, tailwind...) atlar ve derleme kırılır.
+RUN --mount=type=cache,id=blog-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
-# Kaynağı kopyala ve derle
 COPY . .
+ENV NODE_ENV=production
 RUN pnpm --filter web build \
  && pnpm --filter cms build
 
-# Strapi'yi kendi kendine yeten (production node_modules dahil) klasöre çıkar
-RUN pnpm --filter cms deploy --prod /app/cms-deploy
+# Strapi'yi yalnızca production bağımlılıklarıyla kendi kendine yeten bir
+# klasöre çıkar. `pnpm deploy` paket listesini .gitignore'a göre seçtiği için
+# derlenmiş `dist/` (sunucu kodu + admin paneli) ayrıca kopyalanır.
+RUN --mount=type=cache,id=blog-pnpm-store,target=/pnpm/store \
+    pnpm --filter cms deploy --prod --legacy /app/cms-deploy \
+ && rm -rf /app/cms-deploy/dist \
+ && cp -r apps/cms/dist /app/cms-deploy/dist \
+ && mkdir -p /app/cms-deploy/public/uploads
 
 # ---- Web runner: Next.js standalone ----
-FROM base AS web
+FROM node:${NODE_VERSION}-slim AS web
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
+# Next, görsel/ISR cache'ini .next/cache altına yazar → node kullanıcısına ait olmalı.
+RUN chown node:node /app
 # standalone çıktısı monorepo köküyle birlikte apps/web/server.js üretir
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=node:node /app/apps/web/public ./apps/web/public
+USER node
 EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "apps/web/server.js"]
 
 # ---- CMS runner: Strapi ----
-FROM base AS cms
+FROM node:${NODE_VERSION}-slim AS cms
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=1337
 WORKDIR /app
-COPY --from=builder /app/cms-deploy ./
+RUN chown node:node /app
+COPY --from=builder --chown=node:node /app/cms-deploy ./
+USER node
 EXPOSE 1337
-CMD ["pnpm", "start"]
+# İlk açılışta Strapi veritabanı tablolarını oluşturur; yavaş sunucularda
+# 1-2 dk sürebilir, start-period buna göre geniş tutuldu.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=6 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:1337/_health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+CMD ["node", "node_modules/@strapi/strapi/bin/strapi.js", "start"]
