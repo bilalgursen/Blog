@@ -1,0 +1,10 @@
+# Container içinde çalışan ya da kabuk tarafından okunan dosyalar Windows'ta
+# da LF satır sonuyla klonlanmalı. CRLF ile gelirlerse "bad interpreter"
+# hataları ve \r içeren bozuk .env değerleri oluşur.
+/blog               text eol=lf
+*.sh                text eol=lf
+docker/**           text eol=lf
+.env*.example       text eol=lf
+apps/*/.env.example text eol=lf
+*.yml               text eol=lf
+*.yaml              text eol=lf

@@ -1,0 +1,797 @@
+#!/bin/sh
+# shellcheck disable=SC2016 # tek tırnaklı $DEĞİŞKENLER container içinde açılır (kasıtlı)
+# ==============================================================
+#  blog — tek komutla geliştirme ve yayına alma aracı
+#
+#    ./blog dev                         Yerelde başlat (hot-reload)
+#    ./blog deploy --domain ornek.com   Sunucuda HTTPS ile yayına al
+#    ./blog help                        Tüm komutlar
+#
+#  Yalnızca POSIX sh + Docker gerektirir (macOS, Linux, WSL, Git Bash).
+#  Node.js / pnpm kurulumu gerekmez; her şey container içinde çalışır.
+# ==============================================================
+set -eu
+
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+cd "$ROOT"
+
+DEV_FILE=docker-compose.yml
+DEV_OVERRIDE=docker-compose.override.yml
+PROD_FILE=docker-compose.prod.yml
+PROD_OVERRIDE=docker-compose.prod.override.yml
+PROD_ENV=.env.production
+BACKUP_DIR=backups
+DEV_PROJECT=blog
+PROD_PROJECT=blog-prod
+
+# Git Bash (Windows): container içi yolların (/app/...) Windows yoluna
+# çevrilmesini engelle.
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+
+# ---------------------------------------------------------------
+# Çıktı yardımcıları
+# ---------------------------------------------------------------
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  BOLD=$(printf '\033[1m') DIM=$(printf '\033[2m') RED=$(printf '\033[31m')
+  GREEN=$(printf '\033[32m') YELLOW=$(printf '\033[33m') CYAN=$(printf '\033[36m')
+  RESET=$(printf '\033[0m') IS_TTY=1
+else
+  BOLD='' DIM='' RED='' GREEN='' YELLOW='' CYAN='' RESET='' IS_TTY=''
+fi
+ESC=$(printf '\033')
+
+info() { printf '%s==>%s %s\n' "$CYAN" "$RESET" "$*"; }
+ok() { printf '%s✔%s %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '%s! %s%s\n' "$YELLOW" "$*" "$RESET" >&2; }
+die() {
+  printf '%s✖ %s%s\n' "$RED" "$*" "$RESET" >&2
+  exit 1
+}
+clear_line() { [ -n "$IS_TTY" ] && printf '\r%s[K' "$ESC" || true; }
+
+# ---------------------------------------------------------------
+# Kullanıcı etkileşimi (curl | sh ile çalışırken bile /dev/tty'den okur)
+# ---------------------------------------------------------------
+ASSUME_YES=''
+
+has_tty() { (: </dev/tty) 2>/dev/null; }
+
+# ask "Soru" "varsayılan" → cevabı stdout'a yazar
+ask() {
+  printf '%s ' "$1" >/dev/tty
+  answer=''
+  read -r answer </dev/tty || answer=''
+  [ -n "$answer" ] || answer=$2
+  printf '%s' "$answer"
+}
+
+# confirm "Soru" [yes]  → ikinci argüman "yes" ise varsayılan Evet
+confirm() {
+  [ -n "$ASSUME_YES" ] && return 0
+  has_tty || return 1
+  if [ "${2:-}" = yes ]; then hint='[E/h]'; else hint='[e/H]'; fi
+  printf '%s %s ' "$1" "$hint" >/dev/tty
+  reply=''
+  read -r reply </dev/tty || reply=''
+  case "$reply" in
+    e | E | evet | Evet | y | Y | yes) return 0 ;;
+    '') [ "${2:-}" = yes ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------
+# .env yardımcıları
+# ---------------------------------------------------------------
+rand_hex() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex "$1"
+  else
+    od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
+env_get() { # dosya anahtar
+  [ -f "$1" ] || return 0
+  sed -n "s/^$2=//p" "$1" | tail -n 1 | tr -d '\r'
+}
+
+env_set() { # dosya anahtar değer — dosya izinlerini korur
+  tmp="$1.tmp.$$"
+  awk -v k="$2" -v v="$3" '
+    index($0, k "=") == 1 { if (!done) print k "=" v; done = 1; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' "$1" >"$tmp"
+  cat "$tmp" >"$1"
+  rm -f "$tmp"
+}
+
+# Boş ya da "changeMe..." placeholder ise değeri yazar; mevcut gerçek
+# değerlere asla dokunmaz (DB parolası değişirse veritabanına erişim kopar).
+env_fill() {
+  case "$(env_get "$1" "$2")" in
+    '' | changeMe*) env_set "$1" "$2" "$3" ;;
+  esac
+}
+
+fill_strapi_secrets() {
+  env_fill "$1" APP_KEYS "$(rand_hex 16),$(rand_hex 16),$(rand_hex 16),$(rand_hex 16)"
+  env_fill "$1" API_TOKEN_SALT "$(rand_hex 16)"
+  env_fill "$1" ADMIN_JWT_SECRET "$(rand_hex 32)"
+  env_fill "$1" TRANSFER_TOKEN_SALT "$(rand_hex 16)"
+  env_fill "$1" JWT_SECRET "$(rand_hex 32)"
+  env_fill "$1" ENCRYPTION_KEY "$(rand_hex 16)"
+  env_fill "$1" REVALIDATE_SECRET "$(rand_hex 24)"
+}
+
+# Şablonu (CRLF temizleyerek) yalnızca sahibin okuyabileceği şekilde kopyalar.
+copy_template() {
+  old_umask=$(umask)
+  umask 077
+  tr -d '\r' <"$1" >"$2"
+  umask "$old_umask"
+}
+
+# ---------------------------------------------------------------
+# Docker
+# ---------------------------------------------------------------
+TARGET='' # dev | prod
+
+# Git'e girmeyen yerel override dosyaları (ör. sunucuya özel kaynak limitleri,
+# ek ortam değişkenleri) varsa otomatik eklenir; tracked dosyalar değişmez.
+compose() {
+  if [ "$TARGET" = prod ]; then
+    if [ -f "$PROD_OVERRIDE" ]; then
+      docker compose -f "$PROD_FILE" -f "$PROD_OVERRIDE" --env-file "$PROD_ENV" "$@"
+    else
+      docker compose -f "$PROD_FILE" --env-file "$PROD_ENV" "$@"
+    fi
+  else
+    if [ -f "$DEV_OVERRIDE" ]; then
+      docker compose -f "$DEV_FILE" -f "$DEV_OVERRIDE" "$@"
+    else
+      docker compose -f "$DEV_FILE" "$@"
+    fi
+  fi
+}
+
+install_docker() {
+  [ "$(uname -s)" = Linux ] || die "Docker bulunamadı. Docker Desktop'ı kurun: https://docs.docker.com/get-docker/"
+  warn "Docker kurulu değil."
+  confirm "Docker resmi kurulum betiğiyle (get.docker.com) şimdi kurulsun mu?" yes ||
+    die "Docker gerekli: https://docs.docker.com/engine/install/"
+  command -v curl >/dev/null 2>&1 || die "Docker kurulumu için curl gerekli (ör. apt-get install -y curl)."
+  if [ "$(id -u)" -eq 0 ]; then
+    curl -fsSL https://get.docker.com | sh
+  else
+    curl -fsSL https://get.docker.com | sudo sh
+    sudo usermod -aG docker "$(id -un)" || true
+    die "Docker kuruldu. Grup izninin etkinleşmesi için oturumu kapatıp açın ve komutu tekrar çalıştırın."
+  fi
+}
+
+need_docker() {
+  if ! command -v docker >/dev/null 2>&1; then
+    if [ "${1:-}" = offer-install ]; then install_docker; else
+      die "Docker bulunamadı. Kurulum: https://docs.docker.com/get-docker/"
+    fi
+  fi
+  if ! docker_err=$(docker info 2>&1 >/dev/null); then
+    case "$docker_err" in
+      *"permission denied"*)
+        die "Docker'a erişim izni yok. 'sudo ./blog ...' ile çalıştırın ya da kullanıcınızı docker grubuna ekleyin: sudo usermod -aG docker \$USER (ardından oturumu yeniden açın)." ;;
+      *) die "Docker çalışmıyor. Docker Desktop'ı açın (Linux: sudo systemctl start docker)." ;;
+    esac
+  fi
+  docker compose version >/dev/null 2>&1 ||
+    die "Docker Compose v2 gerekli ('docker compose'). Kurulum: https://docs.docker.com/compose/install/"
+}
+
+project_has_containers() {
+  [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$1" 2>/dev/null)" ]
+}
+
+# --dev / --prod verilmediyse ortamı tahmin et: sunucuda yalnızca
+# .env.production olur → prod; geliştirici makinesinde → dev. İkisi de
+# varsa container'ı olan (çalışan) ortam seçilir.
+resolve_target() {
+  [ -n "$TARGET" ] && return 0
+  if [ -f "$PROD_ENV" ] && { project_has_containers "$PROD_PROJECT" || ! project_has_containers "$DEV_PROJECT"; }; then
+    TARGET=prod
+  else
+    TARGET=dev
+  fi
+}
+
+require_target_env() {
+  if [ "$TARGET" = prod ]; then
+    [ -f "$PROD_ENV" ] || die "Üretim ortamı kurulmamış. Önce: ./blog deploy --domain alanadiniz.com"
+  else
+    [ -f .env ] || die "Geliştirme ortamı kurulmamış. Önce: ./blog dev"
+  fi
+}
+
+uploads_path() {
+  if [ "$TARGET" = prod ]; then echo /app/public/uploads; else echo /app/apps/cms/public/uploads; fi
+}
+
+# Servis loglarının son satırını (renk kodları temizlenmiş) döndürür.
+last_log_line() {
+  docker logs --tail 1 "$1" 2>&1 | tail -n 1 | sed "s/${ESC}\[[0-9;]*[A-Za-z]//g" | tr -d '\r' | cut -c1-70
+}
+
+service_failed() { # servis neden
+  clear_line
+  printf '%s✖ %s başlatılamadı (%s). Son loglar:%s\n' "$RED" "$1" "$2" "$RESET" >&2
+  compose logs --tail 40 "$1" >&2 || true
+  printf '\nTüm loglar: ./blog logs %s   •   Sorun giderme: docs/deployment.md\n' "$1" >&2
+  exit 1
+}
+
+# wait_healthy <zaman aşımı sn> <servis>... — her servis healthy (ya da
+# healthcheck'i yoksa running) olana kadar ilerlemeyi göstererek bekler.
+wait_healthy() {
+  limit=$1
+  shift
+  started=$(date +%s)
+  for svc in "$@"; do
+    last_note=0
+    while :; do
+      cid=$(compose ps -aq "$svc" 2>/dev/null | head -n 1)
+      state=missing
+      restarts=0
+      if [ -n "$cid" ]; then
+        state=$(docker inspect -f '{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" 2>/dev/null || echo unknown)
+        restarts=$(docker inspect -f '{{.RestartCount}}' "$cid" 2>/dev/null || echo 0)
+      fi
+      case "$state" in
+        running/healthy | running/none)
+          clear_line
+          ok "$svc hazır"
+          break
+          ;;
+        */unhealthy) service_failed "$svc" "sağlık kontrolü başarısız" ;;
+        exited/* | dead/*) service_failed "$svc" "container durdu" ;;
+      esac
+      [ "$restarts" -ge 3 ] && service_failed "$svc" "sürekli yeniden başlıyor"
+      elapsed=$(($(date +%s) - started))
+      [ "$elapsed" -ge "$limit" ] && service_failed "$svc" "${limit} sn içinde hazır olmadı"
+      if [ -n "$IS_TTY" ]; then
+        line=''
+        [ -n "$cid" ] && line=$(last_log_line "$cid")
+        printf '\r%s[K  %s… %s hazırlanıyor (%ss)%s %s%s%s' "$ESC" "$BOLD" "$svc" "$elapsed" "$RESET" "$DIM" "$line" "$RESET"
+      elif [ $((elapsed - last_note)) -ge 30 ]; then
+        echo "  … $svc hazırlanıyor (${elapsed}s)"
+        last_note=$elapsed
+      fi
+      sleep 3
+    done
+  done
+}
+
+# Next.js içerik önbelleğini tazeler (derleme anında CMS'e ulaşılamadığı
+# için boş üretilen sayfalar hemen gerçek içerikle dolar).
+revalidate_content() {
+  if compose exec -T web node -e "
+    fetch('http://127.0.0.1:3000/api/revalidate', {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + process.env.REVALIDATE_SECRET },
+    }).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))
+  " >/dev/null 2>&1; then
+    ok "İçerik önbelleği tazelendi"
+  else
+    warn "İçerik önbelleği tazelenemedi; sayfalar en geç 60 sn içinde kendiliğinden güncellenir."
+  fi
+}
+
+# ---------------------------------------------------------------
+# Geliştirme ortamı
+# ---------------------------------------------------------------
+ensure_dev_env() {
+  if [ -f .env ]; then
+    echo "${DIM}   .env mevcut, dokunulmadı.${RESET}"
+  else
+    copy_template .env.example .env
+    fill_strapi_secrets .env
+    ok ".env oluşturuldu (rastgele secret'larla)"
+  fi
+  # Docker'sız `pnpm dev:cms` bu dosyayı okur; kök .env ile aynı secret'lar.
+  if [ -f apps/cms/.env ]; then
+    echo "${DIM}   apps/cms/.env mevcut, dokunulmadı.${RESET}"
+  else
+    copy_template apps/cms/.env.example apps/cms/.env
+    for key in APP_KEYS API_TOKEN_SALT ADMIN_JWT_SECRET TRANSFER_TOKEN_SALT JWT_SECRET ENCRYPTION_KEY; do
+      env_set apps/cms/.env "$key" "$(env_get .env "$key")"
+    done
+    ok "apps/cms/.env oluşturuldu"
+  fi
+}
+
+cmd_setup() {
+  info "Ortam dosyaları hazırlanıyor"
+  ensure_dev_env
+}
+
+cmd_dev() {
+  TARGET=dev
+  need_docker
+  info "Ortam dosyaları hazırlanıyor"
+  ensure_dev_env
+  info "Container'lar derleniyor ve başlatılıyor"
+  compose up -d --build ||
+    die "Container'lar başlatılamadı. Port çakışması varsa .env içinde WEB_PORT / CMS_PORT / POSTGRES_PORT değerlerini değiştirin."
+  echo "${DIM}   İlk açılış birkaç dakika sürebilir (bağımlılıklar + Strapi admin paneli derlemesi).${RESET}"
+  wait_healthy 1200 db cms web
+
+  web_port=$(env_get .env WEB_PORT)
+  cms_port=$(env_get .env CMS_PORT)
+  cat <<EOF
+
+${GREEN}${BOLD}✔ Geliştirme ortamı hazır!${RESET}
+
+  ${BOLD}Blog${RESET}           http://localhost:${web_port:-3000}
+  ${BOLD}Strapi admin${RESET}   http://localhost:${cms_port:-1337}/admin
+                 ${DIM}İlk girişte yönetici hesabınızı oluşturun.${RESET}
+
+  Kod değişiklikleri anında yansır (hot-reload).
+  ${DIM}Loglar:${RESET} ./blog logs     ${DIM}Durdur:${RESET} ./blog stop     ${DIM}Durum:${RESET} ./blog status
+
+EOF
+}
+
+cmd_reset() {
+  resolve_target
+  [ "$TARGET" = dev ] ||
+    die "reset yalnızca geliştirme ortamında kullanılabilir. Üretim verisini silmek bilinçli, manuel bir işlem olmalı."
+  need_docker
+  confirm "Geliştirme veritabanı, medya ve bağımlılık volume'ları SİLİNECEK. Emin misiniz?" ||
+    die "İptal edildi."
+  compose down -v --remove-orphans
+  ok "Geliştirme ortamı sıfırlandı. Yeniden başlatmak için: ./blog dev"
+}
+
+# ---------------------------------------------------------------
+# Üretim (sunucu)
+# ---------------------------------------------------------------
+OPT_DOMAIN=''
+OPT_CMS_DOMAIN=''
+OPT_PROXY='' # caddy | none
+
+normalize_domain() {
+  printf '%s' "$1" | sed -e 's#^[A-Za-z]*://##' -e 's#/.*$##' | tr '[:upper:]' '[:lower:]'
+}
+
+is_valid_domain() {
+  case "$1" in
+    '' | .* | *. | *..* | *[!a-z0-9.-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+validate_domain() {
+  is_valid_domain "$1" || die "Geçersiz alan adı: '$1'. Yalnızca alan adını yazın (ör. blog.ornek.com)."
+}
+
+# prompt_domain "Soru" "varsayılan" → geçerli bir alan adı girilene kadar sorar
+prompt_domain() {
+  while :; do
+    value=$(normalize_domain "$(ask "$1" "$2")")
+    is_valid_domain "$value" && break
+    [ -n "$value" ] && printf '%s! Geçersiz alan adı: %s (ör. blog.ornek.com)%s\n' "$YELLOW" "$value" "$RESET" >/dev/tty
+  done
+  printf '%s' "$value"
+}
+
+# .env.production'ı oluşturur / günceller ve secret'ları doldurur.
+configure_prod() {
+  created=''
+  if [ ! -f "$PROD_ENV" ]; then
+    # Klasör silinip yeniden kurulduysa eski veritabanı volume'ü eski parolayla
+    # durur; yeni rastgele parolayla Strapi bağlanamaz. Baştan açıkça söyle.
+    if docker volume inspect "${PROD_PROJECT}_postgres_data" >/dev/null 2>&1; then
+      die "Önceki bir kurulumdan kalan veritabanı bulundu (${PROD_PROJECT}_postgres_data), ama $PROD_ENV yok.
+  Bu veritabanı eski parolayla korunuyor; yeni üretilecek parolayla açılamaz.
+  • Eski $PROD_ENV dosyanız varsa bu klasöre geri koyup komutu tekrar çalıştırın.
+  • Ya da eski verileri SİLİP temiz kurulum yapın:
+      docker rm -f \$(docker ps -aq --filter label=com.docker.compose.project=${PROD_PROJECT})
+      docker volume rm ${PROD_PROJECT}_postgres_data ${PROD_PROJECT}_cms_uploads"
+    fi
+    created=1
+  fi
+
+  current_domain=$(env_get "$PROD_ENV" DOMAIN)
+  [ "$current_domain" = blog.example.com ] && current_domain=''
+  domain=$(normalize_domain "${OPT_DOMAIN:-$current_domain}")
+
+  if [ -z "$domain" ]; then
+    has_tty || die "Alan adı gerekli: ./blog deploy --domain blog.ornek.com"
+    printf '\n%sBlog hangi alan adında yayınlanacak?%s\n' "$BOLD" "$RESET" >/dev/tty
+    printf '%sDNS A kaydı bu sunucunun IP adresini göstermeli. Alan adınız yoksa%s\n' "$DIM" "$RESET" >/dev/tty
+    printf '%s<sunucu-ip>.sslip.io kullanabilirsiniz (ör. 203.0.113.10.sslip.io).%s\n' "$DIM" "$RESET" >/dev/tty
+    domain=$(prompt_domain 'Alan adı:' '')
+  fi
+  validate_domain "$domain"
+
+  cms_domain=$(normalize_domain "$OPT_CMS_DOMAIN")
+  if [ -z "$cms_domain" ]; then
+    current_cms=$(env_get "$PROD_ENV" CMS_DOMAIN)
+    if [ "$domain" = "$current_domain" ] && [ -n "$current_cms" ]; then
+      cms_domain=$current_cms
+    else
+      cms_domain="cms.$domain"
+      if [ -z "$ASSUME_YES" ] && has_tty; then
+        cms_domain=$(prompt_domain "Strapi admin alan adı [cms.$domain]:" "cms.$domain")
+      fi
+    fi
+  fi
+  validate_domain "$cms_domain"
+  [ "$cms_domain" != "$domain" ] || die "Blog ve Strapi farklı alan adlarında olmalı (ör. $domain ve cms.$domain)."
+
+  # Dosya ancak alan adları netleşince oluşturulur (yarım dosya kalmasın).
+  [ -n "$created" ] && copy_template .env.production.example "$PROD_ENV"
+  env_set "$PROD_ENV" DOMAIN "$domain"
+  env_set "$PROD_ENV" CMS_DOMAIN "$cms_domain"
+  env_set "$PROD_ENV" CMS_URL "https://$cms_domain"
+  case "$OPT_PROXY" in
+    caddy) env_set "$PROD_ENV" COMPOSE_PROFILES caddy ;;
+    none) env_set "$PROD_ENV" COMPOSE_PROFILES '' ;;
+  esac
+  env_fill "$PROD_ENV" POSTGRES_PASSWORD "$(rand_hex 24)"
+  fill_strapi_secrets "$PROD_ENV"
+  chmod 600 "$PROD_ENV"
+
+  if [ -n "$created" ]; then
+    ok "$PROD_ENV oluşturuldu (tüm parolalar ve anahtarlar rastgele üretildi)"
+  else
+    ok "$PROD_ENV güncel"
+  fi
+}
+
+uses_caddy() { [ "$(env_get "$PROD_ENV" COMPOSE_PROFILES)" = caddy ]; }
+
+is_local_domain() {
+  case "$1" in localhost | *.localhost) return 0 ;; *) return 1 ;; esac
+}
+
+preflight_prod() {
+  # Eski (bu araçtan önceki) kurulum: proje adı farklı olduğu için veriler
+  # otomatik taşınmaz — kullanıcıyı uyar.
+  if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'blog_postgres_prod'; then
+    warn "Eski bir üretim kurulumu bulundu (blog_postgres_prod). Yeni kurulum ayrı volume'lar kullanır;"
+    warn "eski verileri taşımak için: docs/deployment.md → 'Eski kurulumdan geçiş'."
+    confirm "Yine de devam edilsin mi?" || die "İptal edildi."
+  fi
+
+  # Next.js + Strapi admin derlemesi ~3 GB bellek ister.
+  if [ -r /proc/meminfo ]; then
+    mem_mb=$(awk '/^(MemTotal|SwapTotal):/ { s += $2 } END { print int(s / 1024) }' /proc/meminfo)
+    if [ "$mem_mb" -lt 3500 ]; then
+      warn "RAM + swap toplamı ${mem_mb} MB. Derleme bellek yetersizliğinden (exit 137) düşebilir;"
+      warn "en az 4 GB önerilir. Swap eklemek için: docs/deployment.md → 'Swap ekleme'."
+    fi
+  fi
+
+  if uses_caddy; then
+    for host in "$(env_get "$PROD_ENV" DOMAIN)" "$(env_get "$PROD_ENV" CMS_DOMAIN)"; do
+      is_local_domain "$host" && continue
+      if command -v getent >/dev/null 2>&1 && ! getent hosts "$host" >/dev/null 2>&1; then
+        warn "$host için DNS kaydı bulunamadı. Kayıt yayılana kadar HTTPS sertifikası alınamaz (Caddy otomatik tekrar dener)."
+      fi
+    done
+  fi
+}
+
+# Caddy sertifikayı aldıktan sonra sitenin HTTPS üzerinden yanıt verdiğini doğrular.
+verify_https() {
+  command -v curl >/dev/null 2>&1 || return 0
+  domain=$(env_get "$PROD_ENV" DOMAIN)
+  insecure=''
+  is_local_domain "$domain" && insecure='-k'
+  info "HTTPS doğrulanıyor (ilk sertifika 10-60 sn sürebilir)"
+  i=0
+  while [ $i -lt 30 ]; do
+    # shellcheck disable=SC2086
+    if curl -fsS $insecure -o /dev/null --max-time 5 "https://$domain/api/health" 2>/dev/null; then
+      ok "https://$domain yanıt veriyor"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 3
+  done
+  warn "https://$domain henüz yanıt vermiyor. DNS kaydını ve 80/443 portlarının açık olduğunu kontrol edin:"
+  warn "  ./blog logs caddy"
+}
+
+print_prod_summary() {
+  domain=$(env_get "$PROD_ENV" DOMAIN)
+  cms_domain=$(env_get "$PROD_ENV" CMS_DOMAIN)
+  if uses_caddy; then
+    site="https://$domain"
+    admin="https://$cms_domain/admin"
+    proxy_note=''
+  else
+    site="http://127.0.0.1:$(env_get "$PROD_ENV" WEB_PORT)"
+    admin="http://127.0.0.1:$(env_get "$PROD_ENV" CMS_PORT)/admin"
+    proxy_note="  ${YELLOW}Caddy kapalı: kendi reverse proxy'nizi $domain → $site ve $cms_domain → ${admin%/admin} adreslerine yönlendirin.${RESET}
+"
+  fi
+  cat <<EOF
+
+${GREEN}${BOLD}✔ Blogunuz yayında!${RESET}
+
+  ${BOLD}Blog${RESET}           $site
+  ${BOLD}Strapi admin${RESET}   $admin
+                 ${DIM}İlk girişte yönetici hesabınızı oluşturun — panel herkese açık, gecikmeyin.${RESET}
+$proxy_note
+  ${DIM}Güncelle:${RESET} ./blog update    ${DIM}Yedek al:${RESET} ./blog backup    ${DIM}Loglar:${RESET} ./blog logs
+
+EOF
+}
+
+cmd_deploy() {
+  TARGET=prod
+  need_docker offer-install
+  info "Yapılandırma"
+  configure_prod
+  preflight_prod
+
+  info "İmajlar derleniyor (ilk seferde 3-8 dk sürebilir)"
+  compose build || die "Derleme başarısız. Bellek yetersizliği (exit 137) için: docs/deployment.md → 'Swap ekleme'."
+
+  info "Servisler başlatılıyor"
+  # Caddy kapatıldıysa (--no-caddy) eski Caddy container'ını kaldır: profili
+  # pasif servisler "orphan" sayılmadığı için --remove-orphans bunu yapmaz
+  # ve 80/443 kendi reverse proxy'nize kapalı kalırdı.
+  if ! uses_caddy; then
+    caddy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=$PROD_PROJECT" \
+      --filter "label=com.docker.compose.service=caddy")
+    if [ -n "$caddy_ids" ]; then
+      # shellcheck disable=SC2086
+      docker rm -f $caddy_ids >/dev/null && ok "Caddy durduruldu (80/443 serbest)"
+    fi
+  fi
+  compose up -d --remove-orphans ||
+    die "Servisler başlatılamadı. 80/443 portlarını başka bir web sunucusu (nginx/apache) kullanıyor olabilir."
+  wait_healthy 600 db cms web
+  uses_caddy && wait_healthy 60 caddy
+  revalidate_content
+  uses_caddy && verify_https
+
+  # Yalnızca etiketsiz (eski derlemelerden kalan) imajları temizle.
+  docker image prune -f >/dev/null 2>&1 || true
+  print_prod_summary
+}
+
+cmd_update() {
+  [ -f "$PROD_ENV" ] || die "Üretim ortamı kurulmamış. Önce: ./blog deploy --domain alanadiniz.com"
+  if [ -z "${BLOG_SKIP_PULL:-}" ] && [ -d .git ] && command -v git >/dev/null 2>&1; then
+    info "Son sürüm indiriliyor (git pull)"
+    git pull --ff-only ||
+      die "git pull başarısız (ayrıntı yukarıda). Sunucuda yerel değişiklik varsa 'git status' ile kontrol edin."
+    # Betiğin kendisi de güncellenmiş olabilir: yeni sürümle devam et.
+    BLOG_SKIP_PULL=1 exec sh "$ROOT/blog" update ${ASSUME_YES:+--yes}
+  fi
+  TARGET=prod
+  need_docker
+  info "Taban imajlar güncelleniyor"
+  compose pull --ignore-buildable --quiet 2>/dev/null || warn "Taban imajlar çekilemedi; mevcut sürümlerle devam ediliyor."
+  cmd_deploy
+}
+
+# ---------------------------------------------------------------
+# Yedekleme
+# ---------------------------------------------------------------
+cmd_backup() {
+  resolve_target
+  require_target_env
+  need_docker
+  stamp=$(date +%Y%m%d-%H%M%S)
+  name="blog-$TARGET-$stamp"
+  mkdir -p "$BACKUP_DIR"
+  work="$BACKUP_DIR/.$name"
+  rm -rf "$work"
+  mkdir -p "$work"
+  trap 'rm -rf "$work"' EXIT INT TERM
+
+  info "Yedek alınıyor ($TARGET)"
+  compose up -d db >/dev/null 2>&1
+  wait_healthy 120 db
+  compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl' >"$work/db.sql" ||
+    die "Veritabanı dışa aktarılamadı."
+  ok "Veritabanı dışa aktarıldı"
+  compose run --rm --no-deps -T --entrypoint tar cms -C "$(uploads_path)" -cf - . >"$work/uploads.tar" 2>/dev/null ||
+    die "Medya dosyaları arşivlenemedi."
+  ok "Medya dosyaları arşivlendi"
+  {
+    echo "created=$stamp"
+    echo "environment=$TARGET"
+    echo "commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  } >"$work/meta.txt"
+
+  old_umask=$(umask)
+  umask 077
+  tar -czf "$BACKUP_DIR/$name.tar.gz" -C "$work" db.sql uploads.tar meta.txt
+  umask "$old_umask"
+  size=$(du -h "$BACKUP_DIR/$name.tar.gz" | cut -f1)
+  ok "Yedek hazır: $BACKUP_DIR/$name.tar.gz ($size)"
+  echo "${DIM}   Geri yüklemek için: ./blog restore $BACKUP_DIR/$name.tar.gz${RESET}"
+}
+
+cmd_restore() {
+  file=${1:-}
+  [ -n "$file" ] || die "Kullanım: ./blog restore <yedek.tar.gz | dump.sql>"
+  [ -f "$file" ] || die "Dosya bulunamadı: $file"
+  resolve_target
+  require_target_env
+  need_docker
+
+  printf '%s%s ortamındaki veritabanı ve medya, yedektekiyle DEĞİŞTİRİLECEK.%s\n' "$YELLOW" "$TARGET" "$RESET"
+  confirm "Devam edilsin mi?" || die "İptal edildi."
+
+  mkdir -p "$BACKUP_DIR"
+  work="$BACKUP_DIR/.restore-$$"
+  rm -rf "$work"
+  mkdir -p "$work"
+  trap 'rm -rf "$work"' EXIT INT TERM
+  case "$file" in
+    *.sql) cp "$file" "$work/db.sql" ;;
+    *.sql.gz) gunzip -c "$file" >"$work/db.sql" ;;
+    *) tar -xzf "$file" -C "$work" || die "Arşiv açılamadı: $file" ;;
+  esac
+  [ -f "$work/db.sql" ] || die "Arşivde db.sql bulunamadı."
+
+  compose up -d db >/dev/null 2>&1
+  wait_healthy 120 db
+  info "Uygulamalar durduruluyor"
+  compose stop web cms >/dev/null 2>&1 || true
+
+  info "Veritabanı geri yükleniyor"
+  # Temiz geri yükleme: veritabanını sıfırdan oluştur, sonra dump'ı uygula.
+  compose exec -T db sh -c '
+    psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+      -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\" WITH (FORCE)" \
+      -c "CREATE DATABASE \"$POSTGRES_DB\""' >/dev/null ||
+    die "Veritabanı sıfırlanamadı."
+  compose exec -T db sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <"$work/db.sql" >/dev/null ||
+    die "Dump uygulanamadı."
+  ok "Veritabanı geri yüklendi"
+
+  if [ -f "$work/uploads.tar" ]; then
+    compose run --rm --no-deps -T --entrypoint sh cms -c 'find "$1" -mindepth 1 -delete && tar -xf - -C "$1"' sh "$(uploads_path)" \
+      <"$work/uploads.tar" >/dev/null 2>&1 || die "Medya dosyaları geri yüklenemedi."
+    ok "Medya dosyaları geri yüklendi"
+  fi
+
+  info "Uygulamalar başlatılıyor"
+  compose up -d >/dev/null 2>&1
+  wait_healthy 600 cms web
+  [ "$TARGET" = prod ] && revalidate_content
+  ok "Geri yükleme tamamlandı"
+}
+
+# ---------------------------------------------------------------
+# Yönetim
+# ---------------------------------------------------------------
+cmd_status() {
+  resolve_target
+  require_target_env
+  need_docker
+  echo "${DIM}Ortam: $TARGET${RESET}"
+  compose ps
+}
+
+cmd_logs() {
+  resolve_target
+  require_target_env
+  need_docker
+  compose logs -f --tail 200 "$@"
+}
+
+cmd_stop() {
+  resolve_target
+  require_target_env
+  need_docker
+  compose down
+  ok "Durduruldu ($TARGET). Veriler korunuyor."
+}
+
+cmd_start() {
+  resolve_target
+  if [ "$TARGET" = dev ]; then
+    cmd_dev
+    return
+  fi
+  require_target_env
+  need_docker
+  compose up -d
+  wait_healthy 600 db cms web
+  revalidate_content
+  print_prod_summary
+}
+
+cmd_restart() {
+  resolve_target
+  require_target_env
+  need_docker
+  compose restart "$@"
+  ok "Yeniden başlatıldı ($TARGET)"
+}
+
+usage() {
+  cat <<EOF
+${BOLD}blog${RESET} — Next.js + Strapi blog/portfolyo için tek komutluk araç
+
+${BOLD}Yerel geliştirme${RESET}
+  ./blog dev                     Ortamı hazırla ve başlat (hot-reload)
+  ./blog setup                   Yalnızca .env dosyalarını üret
+
+${BOLD}Sunucuda yayın${RESET}
+  ./blog deploy [seçenekler]     Yapılandır, derle, HTTPS ile yayına al
+      --domain <alan-adı>        Blog adresi (ör. blog.ornek.com)
+      --cms-domain <alan-adı>    Strapi adresi (varsayılan: cms.<alan-adı>)
+      --no-caddy                 Dahili Caddy yerine kendi reverse proxy'nizi kullanın
+  ./blog update                  git pull + yeniden derle + yayına al
+
+${BOLD}Yönetim${RESET} (ortam otomatik seçilir; --dev / --prod ile zorlanabilir)
+  ./blog status                  Servis durumları
+  ./blog logs [servis]           Logları canlı izle (db, cms, web, caddy)
+  ./blog start | stop            Başlat / durdur (veriler korunur)
+  ./blog restart [servis]        Yeniden başlat
+  ./blog backup                  Veritabanı + medya yedeği (backups/)
+  ./blog restore <dosya>         Yedekten geri yükle (.tar.gz veya .sql)
+  ./blog reset                   Geliştirme verilerini tamamen sil
+
+${BOLD}Genel seçenekler${RESET}
+  -y, --yes                      Onay sorularını otomatik "evet" yanıtla
+EOF
+}
+
+# ---------------------------------------------------------------
+# Argümanlar
+# ---------------------------------------------------------------
+command=${1:-help}
+[ $# -gt 0 ] && shift
+
+# Seçenekleri ayıklarken konumsal argümanları (boşluk içerse bile) sırasıyla
+# korumak için listeyi döndürerek işler: seçenek olmayanlar sona eklenir.
+remaining=$#
+while [ "$remaining" -gt 0 ]; do
+  arg=$1
+  shift
+  remaining=$((remaining - 1))
+  case "$arg" in
+    --dev) TARGET=dev ;;
+    --prod) TARGET=prod ;;
+    -y | --yes) ASSUME_YES=1 ;;
+    --domain | --cms-domain)
+      [ "$remaining" -gt 0 ] || die "$arg bir değer bekliyor"
+      if [ "$arg" = --domain ]; then OPT_DOMAIN=$1; else OPT_CMS_DOMAIN=$1; fi
+      shift
+      remaining=$((remaining - 1))
+      ;;
+    --domain=*) OPT_DOMAIN=${arg#*=} ;;
+    --cms-domain=*) OPT_CMS_DOMAIN=${arg#*=} ;;
+    --no-caddy) OPT_PROXY=none ;;
+    --caddy) OPT_PROXY=caddy ;;
+    -*) die "Bilinmeyen seçenek: $arg (yardım: ./blog help)" ;;
+    *) set -- "$@" "$arg" ;;
+  esac
+done
+
+case "$command" in
+  dev) cmd_dev ;;
+  setup) cmd_setup ;;
+  deploy) cmd_deploy ;;
+  update) cmd_update ;;
+  status | ps) cmd_status ;;
+  logs) cmd_logs "$@" ;;
+  start | up) cmd_start ;;
+  stop | down) cmd_stop ;;
+  restart) cmd_restart "$@" ;;
+  backup) cmd_backup ;;
+  restore) cmd_restore "$@" ;;
+  reset) cmd_reset ;;
+  help | -h | --help) usage ;;
+  *) die "Bilinmeyen komut: $command (yardım: ./blog help)" ;;
+esac

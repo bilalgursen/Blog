@@ -1,0 +1,73 @@
+name: CI
+
+# Her değişiklikte şablonun hâlâ derlendiğini ve TEK KOMUTLA yayına
+# alınabildiğini doğrular: gerçek `./blog deploy` (Caddy + HTTPS) çalıştırılır,
+# ardından yedek alıp geri yüklenir.
+on:
+  push:
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+  pull_request:
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Typecheck + build + shellcheck
+    # Aynı depodan açılan PR'lar push ile zaten test ediliyor.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Shellcheck
+        run: shellcheck -s sh blog scripts/*.sh docker/entrypoint.sh
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web build
+      - run: pnpm --filter cms build
+
+  deploy-smoke:
+    name: ./blog deploy smoke test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CURL: curl -fsS -k --retry 5 --retry-all-errors --resolve cms.localhost:443:127.0.0.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy (localhost, Caddy iç sertifika)
+        run: ./blog deploy --domain localhost -y
+
+      - name: Smoke test
+        run: |
+          $CURL https://localhost/api/health
+          $CURL -o /dev/null https://localhost/
+          $CURL -o /dev/null https://cms.localhost/admin
+          $CURL -o /dev/null https://cms.localhost/api/profile
+          ./blog status
+
+      - name: Backup + restore
+        run: |
+          ./blog backup -y
+          ./blog restore "$(ls backups/*.tar.gz | head -n 1)" -y
+          $CURL https://localhost/api/health
+
+      - name: Update (idempotent redeploy)
+        run: BLOG_SKIP_PULL=1 ./blog update -y
+
+      - name: Loglar
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail 200
